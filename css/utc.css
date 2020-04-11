@@ -90,3 +90,43 @@ a:hover {
     justify-content: space-between;
     align-items: center;
 }
+
+/* all below from pandoc, with tweaks */
+a.sourceLine {
+    display: inline-block;
+    min-height: 1.25em;
+    pointer-events: none;
+    color: inherit;
+    text-decoration: inherit;
+}
+
+.sourceCode { overflow: visible; }
+
+code.sourceCode { white-space: pre; }
+
+code span.kw { color: darkkhaki; font-weight: bold; } /* Keyword */
+code span.dt { color: darkkhaki; } /* DataType */ /* TODO: or palegreen? */
+code span.dv { color: #ffa0a0; } /* DecVal */
+code span.bn { color: #ffa0a0; } /* BaseN */
+code span.fl { color: #ffa0a0; } /* Float */
+code span.ch { color: #ffa0a0; } /* Char */
+code span.st { color: #ffa0a0; } /* String */
+code span.co { color: skyblue; font-style: italic; } /* Comment */
+code span.ot { color: #eeeeee; } /* Other */
+code span.fu { color: palegreen; } /* Function */
+code span.cn { color: #ffa0a0; } /* Constant */
+code span.sc { color: #ffa0a0; } /* SpecialChar */
+code span.vs { color: #ffa0a0; } /* VerbatimString */
+code span.ss { color: #ffa0a0; } /* SpecialString */
+code span.im { } /* Import */
+code span.va { color: #eeeeee; } /* Variable */
+code span.cf { color: khaki; font-weight: bold; } /* ControlFlow */
+code span.op { color: khaki; } /* Operator */
+code span.bu { } /* BuiltIn */
+code span.ex { } /* Extension */
+code span.pp { color: indianred; } /* Preprocessor */
+code span.at { color: indianred; } /* Attribute */
+code span.do { color: skyblue; font-style: italic; } /* Documentation */
+code span.an { color: skyblue; font-weight: bold; font-style: italic; } /* Annotation */
+code span.cv { color: skyblue; font-weight: bold; font-style: italic; } /* CommentVar */
+code span.in { color: skyblue; font-weight: bold; font-style: italic; } /* Information */
