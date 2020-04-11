@@ -105,7 +105,7 @@ a.sourceLine {
 code.sourceCode { white-space: pre; }
 
 code span.kw { color: darkkhaki; font-weight: bold; } /* Keyword */
-code span.dt { color: darkkhaki; } /* DataType */ /* TODO: or palegreen? */
+code span.dt { color: palegreen; } /* DataType */ /* TODO: or darkkhaki? */
 code span.dv { color: #ffa0a0; } /* DecVal */
 code span.bn { color: #ffa0a0; } /* BaseN */
 code span.fl { color: #ffa0a0; } /* Float */
