@@ -105,14 +105,14 @@ a.sourceLine {
 code.sourceCode { white-space: pre; }
 
 code span.kw { color: darkkhaki; font-weight: bold; } /* Keyword */
-code span.dt { color: palegreen; } /* DataType */ /* TODO: or darkkhaki? */
+code span.dt { color: palegreen; } /* DataType */
 code span.dv { color: #ffa0a0; } /* DecVal */
 code span.bn { color: #ffa0a0; } /* BaseN */
 code span.fl { color: #ffa0a0; } /* Float */
 code span.ch { color: #ffa0a0; } /* Char */
 code span.st { color: #ffa0a0; } /* String */
 code span.co { color: skyblue; font-style: italic; } /* Comment */
-code span.ot { color: #eeeeee; } /* Other */
+code span.ot { color: palegreen; } /* Other */
 code span.fu { color: palegreen; } /* Function */
 code span.cn { color: #ffa0a0; } /* Constant */
 code span.sc { color: #ffa0a0; } /* SpecialChar */
