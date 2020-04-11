@@ -1,8 +1,8 @@
 html {
     background: #333333;
     color: #eeeeee;
-    font-family: 'Times New Roman', 'Times', serif;
-    font-size: 12pt;
+    font-family: 'Georgia', 'Times New Roman', 'Times', serif;
+    font-size: 14pt;
 }
 
 body {
@@ -102,7 +102,10 @@ a.sourceLine {
 
 .sourceCode { overflow: visible; }
 
-code.sourceCode { white-space: pre; }
+code.sourceCode {
+    font-family: 'Lucida Console', 'Consolas', 'Courier New', monospace;
+    white-space: pre;
+}
 
 code span.kw { color: darkkhaki; font-weight: bold; } /* Keyword */
 code span.dt { color: palegreen; } /* DataType */
