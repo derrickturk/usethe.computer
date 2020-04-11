@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>usethe.computer - { EXAMPLE PAGE }</title>
+        <link rel="stylesheet" href="/css/utc.css">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jura:wght@700&display=swap">
+    </head>
+    <body>
+        <div id="header">
+            <div>
+                <h1 class="logo"><a href="/index.html">usethe.computer</a></h1>
+                <h3 class="title">// a blog by Derrick W. Turk</h2>
+            </div>
+            <div class="nav">
+                <a href="/posts.html">ls</a>
+                |
+                <a href="/about.html">whoami</a>
+                |
+                <a href="https://www.terminusdatascience.com">tds, LLC</a>
+                |
+                <a href="https://github.com/derrickturk">git</a>
+                |
+                <a href="https://www.linkedin.com/in/derrick-turk-37747a15/">linkedin</a>
+            </div>
+        </div>
+        <div id="container">
+            <div id="content">
+                <h2 class="title">&ldquo;Learning to Code&rdquo; for Petroleum Engineers<br>(and Other Technical Types)</h2>
+                <h3 class="date">2016-06-26</h3>
+                <p>A recent discussion on the <a href="https://www.linkedin.com/groups/57660/57660-6151176938762293248">SPE discussion board</a> inspired me to jot down some thoughts on how a young (or experienced!) petroleum engineer&mdash;or for that matter any other technically skilled non-programmer&mdash;might best engage with &ldquo;learning to code&rdquo;.
+
+                <p>The last several years have seen an explosion of interest in computer programming, driven perhaps by stories of Silicon Valley &ldquo;unicorns&rdquo; (startups valued over $1 billion) and by a feeling that computing skills may provide one of the few secure career paths in an uncertain future.
+                &ldquo;Coding bootcamps&rdquo; have popped up across the map and appear to be turning a tidy profit; certainly they don't come cheap for attendees.
+
+                <p>As petroleum engineers, we are most certainly interested right now in a little more job security!
+                But just as importantly, programming skills can enable engineers to take on more challenging projects, apply data and algorithms to make better decisions, and provide a great way to exercise of the same mental muscles we need in our engineering work.
+
+                <p>I've been programming longer than I've been an engineer, and software development is a big part of my current business as a data science consultant.
+                In addition to using programming skills to perform statistical analyses and implement machine learning techniques for my clients, I've also worked with them to create custom software systems for some of their most challenging and unique problems.
+                In this article, I'd like to share some advice from my experience, and invite all of you to share your own insights and suggestions in the comments.
+
+                <h3 class="title">This Isn't the Army...</h3>
+                <p>...and you don't need to go to bootcamp.
+                These programs promise a lot, but they're not aimed at you.
+                While I'm skeptical of these bootcamps, I'm willing to grant that they may be right for some people.
+                The model seems to be: spend $20,000 or so to live in a &ldquo;dorm style&rdquo; environment for a few weeks, learn a bit about one programming language, one server-side web framework, and one client-side web framework; build a dinky web application for a final project; get some interview placements; and hire on with Yet Another Web App Startup.
+
+                <p>But as engineers, we're already used to putting in the effort to learn hard things.
+                We don't need to simulate our college living conditions to get back into a growth mindset, and all the resources we could possibly need to learn are available on the Web or (horror of horrors) in the pages of a book.
+
+                <p>And we're not just interested in &ldquo;coding&rdquo; as an end in itself.
+                In fact, I believe there are just a few main reasons an engineer may want to take up programming.
+
+                <h3 class="title">Have Data, Will Travel</h3>
+                <p>We are living in the age of &ldquo;big data&rdquo; and our spreadsheets won't quite cut it anymore.
+                One of the strongest motivators for a modern engineer to take up programming is to engage with the world of data science.
+                The field, which is admittedly a bit oversaturated with hype and buzzwords at the moment, combines statistics with computer science, applying a wide variety of techniques to discover, interpret, and act on patterns in data.
+
+                <p>Thanks in part to the hype, the barrier to entry is lower than ever.
+                There are many online courses that provide a simultaneous introduction to basic statistical technique and basic programming skills.
+
+                <p>Most of these will use the <a href="https://www.r-project.org/">R</a> programming language, and it's a track I recommend as well.
+                R has a lot of shortcomings as a programming language, but for data science&mdash;and especially for new learners&mdash;these pale by comparison to two key strengths.
+
+                <p>First, <a href="https://en.wikipedia.org/wiki/Network_effect">network effects</a>: there are a huge number of high-quality resources available online for learning R due to its user base.
+
+                <p>Second, more network effects: since R is commonly used by practicing statisticians, machine learning researchers, and visualization designers, free and open-source implementations are available on <a href="https://cran.r-project.org/">CRAN</a> for almost any algorithm, visualization, or technique imaginable.
+                Want to try using <a href="https://en.wikipedia.org/wiki/Random_forest">random forests</a> to predict production performance from completion parameters and petrophysical properties? You're just an <code>install.packages("randomForest")</code> away.
+
+                <p>So how can an engineer get started with R and statistical programming?
+                The first thing I'd recommend is downloading the R interpreter (that is, the program that implements the language) from a <a href="https://cran.revolutionanalytics.com/">CRAN mirror</a>; you'll need to follow the links for your operating system.
+                If you've programmed before in a language without an interactive interpreter, you're in for a treat.
+                R lets the programmer run statements and evaluate expressions interactively, and see the results immediately.
+                This interactivity (sometimes called a REPL: &ldquo;read-eval-print loop&rdquo;) is great for learning, as it provides instant feedback and a low-overhead environment in which to tinker.
+                
+                <p>When it comes to courses and books, I'm afraid most of my recommendations are second- or third-hand.
+                When I learned R, the best available option was to read straight through the manual.
+                This still isn't a bad choice, as it's well written and comprehensive.
+                Luckily for today's beginning programmer, there are now more accessible options.
+
+                <p>The <a href="https://www.amazon.com/dp/0596809158/ref=pd_lpo_sbs_dp_ss_1?pf_rd_p=1944687562&pf_rd_s=lpo-top-stripe-1&pf_rd_t=201&pf_rd_i=1491910399&pf_rd_m=ATVPDKIKX0DER&pf_rd_r=E9TARWRA9PK3A7F7HFR4">R Cookbook</a> is a great reference for engineers, and one I can recommend first-hand.
+                While it won't &ldquo;teach you R&rdquo; in one go, it's organized as a quick task-oriented reference: &ldquo;how do I carry out a linear regression?&rdquo; etc.
+
+                <p>The <a href="https://www.coursera.org/specializations/jhu-data-science">Data Science Specialization</a> courses from Coursera cover R programming and some useful techniques; they come generally well-recommended for beginners.
+                Don't be misled&mdash;you don't have to pay for the courses unless you want a certificate (and luckily our industry is not big on certificates!) but instead you can &ldquo;audit&rdquo; them by choosing the courses you are interested in from the <a href="www.coursera.org/jhu">Johns Hopkins course catalog</a>.
+
+                <h3 class="title">Labor-Saving Devices</h3>
+                <!-- this paragraph repeats 'great' and 'many' -->
+                <p>Another great reason to take up programming as an engineer is to automate your way out of tedious work!
+                Historically, most of us find our way to programming by this road; it's how I first started applying software development skills to my engineering work.
+                We already build spreadsheets or even write VBA (Visual Basic for Applications) macros to simplify complex calculations or data transformations.
+
+                <p>While VBA is frequently taught in engineering curriculums, I can't recommend it for beginning programmers.
+                It's not that, as the common stereotype goes, I don't think it's a &ldquo;real language&rdquo;&mdash;rather, it's that I think it's a real bad language.
+
+                <p>VBA doesn't provide a lot of tools for <em>abstraction</em>&mdash;that is, for modeling complex systems as interactions of simpler systems via well-defined interfaces.
+                This is the real heart of software engineering just as it is the heart of other engineering disciplines: functional decomposition, modular design, and a logical approach to problem-solving are how we successfully address problems and build long-lasting, reliable, maintainable systems.
+
+                <p>VBA can be written safely and used to build well-designed systems, but it requires a ton of boilerplate and an endless series of workarounds; in short you will be working &ldquo;against the grain&rdquo; of the language.
+                Come back to it when you've got a few more tricks under your belt, and you'll be a macro master in no time&mdash;but as a first language it's an easy vehicle for bad habits and a dead-end for learning.
+
+                <p>What I recommend instead is for the new engineer-programmer to learn <a href="https://www.python.org/">Python</a>, one of the most popular modern programming languages, and easily one of the most beginner-friendly.
+                Python provides a readable syntax, a well-designed set of abstraction techniques supporting various programming paradigms (<a href="https://en.wikipedia.org/wiki/Procedural_programming">procedural</a>, <a href="https://en.wikipedia.org/wiki/Object-oriented_programming">object-oriented</a>, <a href="https://en.wikipedia.org/wiki/Functional_programming">functional</a>), and an expansive standard library with built-in high-quality implementations of the &ldquo;bread-and-butter&rdquo; data structures.
+                The Python &ldquo;batteries included&rdquo; philosophy means that libraries for many common tasks are included out of the box, there's also a huge variety of free and open-source libraries available for everything from writing web applications to manipulating Excel spreadsheets.
+
+                <p>As with R, it's easy to download the latest version of Python and start playing around in the interactive interpreter.
+                As a very popular beginning language&mdash;but certainly by no means a language <em>just for beginners</em>&mdash;there are a huge variety of learning resources available.
+
+                <p><a href="https://automatetheboringstuff.com/">Automate the Boring Stuff with Python</a> is not just a great title I almost stole for this section, it also comes highly recommended.
+                The books covers some very practical topics of interest to engineers, including Excel automation, and teaches the Python language along the way.
+
+                <p>Coursera, Udacity, and a few others also offer free online courses; I've not taken any of these myself but I'd recommend bouncing between a few until you find something that &ldquo;clicks&rdquo;.
+                The Coursera <a href="https://www.coursera.org/course/programming1">Learn to Program: the Fundamentals</a> course in particular looks promising.
+                
+                <p>In general, I'd recommend finding resources that use Python 3 (the newest major revision of the language, which fixes some &ldquo;warts&rdquo; in the previous design) and cover fundamentals of algorithms and data structures in some depth rather than jumping into flashy &ldquo;fun&rdquo; topics like writing games (I'm asking you to eat your vegetables, but I promise it will be worth it).
+
+                <h3 class="title">&ldquo;Real Programmers&rdquo;</h3>
+                <p>I've laid out two possible paths: learning R for the budding data scientist, and jumping into Python for the automation-seeking engineer.
+                To wrap up, I'd like to comment on some of the beginner-hostile attitudes and ideas that can attach themselves to these topics, and provide some final&mdash;if a bit random&mdash;practical advice.
+
+                <p>First, there's a lot of programming language chauvinism on the internet: &ldquo;real programmers&rdquo; write in C, or in Ruby, or in assembly, or... whatever.
+                Well, if you've ever built a spreadsheet to carry out a calculation, you're as real a programmer as any; from there it's all a matter of ongoing learning and experience.
+                All programming languages are not created equal, and I won't pretend they are: there are some I truly and deeply loathe.
+                But computation is computation, and languages are more-or-less convenient notations for expressing the same fundamental ideas.
+                Learn the fundamentals, and leave the holy wars to the fanatics.
+
+                <p>Second, the current hype is strongly focused on programming for the web; reading job postings and bootcamp pitches one could be forgiven for thinking that web applications and mobile &ldquo;apps&rdquo; were the sum of computer science.
+                These topics are fascinating, but a good grounding in the basics of programming will equip you to learn the specific details of the latest web application framework or iOS library with ease.
+                Again, learn the fundamentals, and the rest will follow.
+
+                <p>Finally, I'd like to conclude with my opinionated list of what &ldquo;real programmers&rdquo; should strive to master, regardless of specific technologies or applications:
+                <ul>
+                    <li><p>Communication: programming is not just for the machine, it's for humans too.
+                        Strive to produce code that's easy to understand; this means writing comments and documentation, and interacting with those who will use it.
+                        Read open-source programs and learn from the techniques of others; troll <a href="https://github.com/">GitHub</a> a bit and flip through projects in interesting areas.
+                    <li><p>Learn a <a href="https://en.wikipedia.org/wiki/Version_control">version control</a> system.
+                        As a programmer, you'll want to do better than a directory full of <code>my_program_v17.py</code>.
+                        While you're on GitHub, you might create an account and start playing with git; or perhaps you'll find another system more to your liking.
+                        The important part is to use your system to track your work and provide yourself the freedom to fearless experiment.
+                    <li><p>Get comfortable with your operating system's command line.
+                        You don't have to be a guru, but knowing how to navigate the file system, launch programs with arguments, and manipulate files will help you engage with the wide world of programming tools.
+                        Plus, you'll be amazed how much faster you may be able to work!
+                    <li><p>Find a text editor that you like, learn its shortcuts and tools, and use its syntax highlighting mode for your chosen language.
+                        <a href="https://notepad-plus-plus.org/">Notepad++</a> is a popular, approachable, and powerful choice; <a href="http://www.vim.org/">Vim</a> and <a href="https://www.gnu.org/software/emacs/">Emacs</a> are the granddaddies of them all with powerful programmable features, but require a certain dedication (or a certain masochism) to master.
+                    <li><p>Practice good design; think in interfaces.
+                        Whether you choose to build bottom-up, constructing complex software out of simple functions, or top-down, filling in a &ldquo;sketch&rdquo; with details as you interact with an evolving system, it's important to use your engineering mindset.
+                        Apply <a href="https://en.wikipedia.org/wiki/Functional_decomposition">functional decomposition</a> and avoid entangled messes dependent on hidden global state.
+                        This is what separates the codebases I hate to inherit (and gleefully rewrite from scratch) with the ones that are a pleasure to maintain and extend.
+                    <li>Investigate other languages and paradigms.
+                        There are a lot of good ideas not found in Python or R.
+                        They're fine languages, but seek out new experiences.
+                        Perhaps you'll care to learn the value of <a href="https://en.wikipedia.org/wiki/Type_system">type systems</a> which help the compiler catch errors before a program ever executes in <a href="https://en.wikipedia.org/wiki/Haskell_(programming_language)">Haskell</a>, or learn to carefully manipulate low-level details of the machine in <a href="https://en.wikipedia.org/wiki/Assembly_language">assembly language</a> or <a href="https://en.wikipedia.org/wiki/C_(programming_language)">C</a>, or to experience the metaprogramming magic of <a href="https://en.wikipedia.org/wiki/Lisp_(programming_language)">Lisp</a>.
+                </ul>
+
+                <p>I've gone well over my intended word count, but I hope at least a few of you will find some value in my experience.
+                Please join the conversation in the comments with your own insights, comments, or questions.
+
+                <p>Happy hacking!
+
+            </div>
+            <!--
+            <div id="sidebar">
+                <ul>
+                    <li>first article
+                    <li>second article
+                </ul>
+            </div>
+            -->
+        </div>
+        <div id="footer">
+            <h6>&copy; 2020 dwt | terminus data science, LLC</h6>
+        </div>
+    </body>
+</html>
