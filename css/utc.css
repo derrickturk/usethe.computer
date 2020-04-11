@@ -20,6 +20,10 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .title {
+    color: darkkhaki;
+}
+
+.comment {
     color: skyblue;
 }
 
@@ -66,9 +70,10 @@ a:hover {
     margin: 0 auto;
 }
 
+/* TODO: scoot this dude down the bottom */
 #footer {
     width: 100%;
-    margin: 0;
+    margin: 2em 0 0 0;
     padding: 0;
     background-color: #c2bfa5;
     color: black;
@@ -89,6 +94,10 @@ a:hover {
     flex-flow: row;
     justify-content: space-between;
     align-items: center;
+}
+
+blockquote {
+    color: skyblue;
 }
 
 /* all below from pandoc, with tweaks */
