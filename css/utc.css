@@ -2,7 +2,7 @@ html {
     background: #333333;
     color: #eeeeee;
     font-family: 'Georgia', 'Times New Roman', 'Times', serif;
-    font-size: 14pt;
+    font-size: 12pt;
 }
 
 body {
@@ -115,7 +115,7 @@ code span.fl { color: #ffa0a0; } /* Float */
 code span.ch { color: #ffa0a0; } /* Char */
 code span.st { color: #ffa0a0; } /* String */
 code span.co { color: skyblue; font-style: italic; } /* Comment */
-code span.ot { color: palegreen; } /* Other */
+code span.ot { color: khaki; } /* Other */
 code span.fu { color: palegreen; } /* Function */
 code span.cn { color: #ffa0a0; } /* Constant */
 code span.sc { color: #ffa0a0; } /* SpecialChar */
