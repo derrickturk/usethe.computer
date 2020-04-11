@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>usethe.computer - { EXAMPLE PAGE }</title>
+        <link rel="stylesheet" href="/css/utc.css">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jura:wght@700&display=swap">
+    </head>
+    <body>
+        <!--#include virtual="/include/before.html" -->
+        <h2 class="title">Paper of the Day: &ldquo;Generalized Algebraic Data Types and Object-Oriented Programming&rdquo;
+        <br>by Andrew Kennedy and Claudio V. Russo
+        </h2>
+        <h3 class="date">2017-11-29</h3>
+        <p>Today’s <a href="https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/gadtoop.pdf">POTD</a> presents a translation of a great tool from the functional programming community into the more mundane world of 90s-style object-oriented programming languages.</p>
+        <p>Since this particular idea has been slow to percolate through the programming world at large, this one will take a little buildup.</p>
+        <p>The <em>algebraic data types</em> (ADTs) provided by many functional programming language permit us to easily express recursive, polymorphic data structures built from alternations (sums) or combinations (products) of other types; pattern matching syntax lets us process them straightforwardly.</p>
+        <p>This is extremely helpful when defining “language translators” of the sort that sneak in to every programming project, whether one notices them or not. For example, we might define a simple language of expressions on integers, and an evaluation function for it (in Haskell syntax):</p>
+        <pre><code>data Expr =
+            Literal Int
+          | Add Expr Expr
+          | Sub Expr Expr
+          | Mul Expr Expr
+          | Div Expr Expr
+
+        eval :: Expr -&gt; Int
+        eval (Literal n) = n
+        eval (Add e1 e2) = eval e1 + eval e2
+        eval (Sub e1 e2) = eval e1 - eval e2
+        eval (Mul e1 e2) = eval e1 * eval e2
+        eval (Div e1 e2) = eval e1 `div` eval e2</code></pre>
+        <p>According to the folklore, those of us working in more common object-oriented languages can implement the same logic, using a class hierarchy with dynamic (virtual) dispatch to stand in for our sum type and pattern matching. It’s a little more wordy, but it accomplishes the same goal, and the translation is more-or-less mechanical with some practice. In C# (forgive me: I like lambda syntax and hate boilerplate, so it will be a bit terser than it could have been), we’d have:</p>
+        <pre><code>// we&#39;ll represent our top-level ADT as an abstract class; this is the
+        //   type we&#39;ll work with in most client code.
+        abstract class Expr {
+            // ADTs are &quot;closed&quot;; that is, the constructors specified in the
+            //   type definition are all we&#39;ll ever have: we&#39;ll implement this in
+            //   C# by building sealed inner classes with access to a private
+            //   constructor
+            private Expr() { }
+
+            // every function we&#39;d implement by pattern-matching for our ADT
+            //   will be an abstract method on the equivalent type
+            public abstract int Eval();
+
+            public sealed class Literal : Expr {
+                public int val;
+                // subclasses implement the specific evaluation logic; this is
+                //   equivalent to the per-pattern definitions in the ADT version
+                public override int Eval() =&gt; val;
+            }
+
+            public sealed class Add : Expr {
+                public Expr e1;
+                public Expr e2;
+                public override int Eval() =&gt; e1.Eval() + e2.Eval();
+            }
+
+            public sealed class Sub : Expr {
+                public Expr e1;
+                public Expr e2;
+                public override int Eval() =&gt; e1.Eval() - e2.Eval();
+            }
+
+            public sealed class Mul : Expr {
+                public Expr e1;
+                public Expr e2;
+                public override int Eval() =&gt; e1.Eval() * e2.Eval();
+            }
+
+            public sealed class Div : Expr {
+                public Expr e1;
+                public Expr e2;
+                public override int Eval() =&gt; e1.Eval() / e2.Eval();
+            }
+        }
+
+        // we can use our type like so:
+        class ExprDemo {
+            static void Main()
+            {
+                var e = new Expr.Add {
+                    e1 = new Expr.Literal { val = 7 },
+                    e2 = new Expr.Mul {
+                        e1 = new Expr.Literal { val = 3 },
+                        e2 = new Expr.Literal { val = 5 }
+                    }
+                };
+
+                // prints &quot;e.Eval() = 22&quot;
+                System.Console.WriteLine(&quot;e.Eval() = {0}&quot;, e.Eval());
+            }
+        }</code></pre>
+        <p>Suppose we extend our little “language” to include not just integer values and integer arithmetic, but an equality test (produing a boolean value) and a conditional (if-then-else) operation. Back to Haskell!</p>
+        <pre><code>data Expr =
+            Literal Int
+          | Add Expr Expr
+          | Sub Expr Expr
+          | Mul Expr Expr
+          | Div Expr Expr
+          | Eql Expr Expr
+          | IfThenElse Expr Expr Expr</code></pre>
+        <p>The types for the interpreter aren’t entirely obvious; the <code>Eql</code> operation should compare two expressions which produce the same type (either an integer or a boolean) for equality, while the <code>IfThenElse</code> operation requires one expression which definitely evaluates to a boolean (the condition) and two others of matching type (the if-branch result and the else-branch result).</p>
+        <p>One possibility is to do the check and produce either a meaningful result of appropriate type, or an error value. Like so:</p>
+        <pre><code>data ExprResult =
+            IntResult Int
+          | BoolResult Bool
+          deriving Show
+
+        data ExprTy = IntTy | BoolTy deriving Show
+        data TypeError = TypeError { expected :: ExprTy , got :: ExprTy }
+          deriving Show
+
+        eval :: Expr -&gt; Either TypeError ExprResult
+
+        eval (Literal n) = Right (IntResult n)
+
+        eval (Add e1 e2) = do
+          x &lt;- eval e1
+          y &lt;- eval e2
+          case (x, y) of
+            (IntResult x, IntResult y) -&gt; Right $ IntResult (x + y)
+            (BoolResult _, _) -&gt; Left $ TypeError IntTy BoolTy
+            (_, BoolResult _) -&gt; Left $ TypeError IntTy BoolTy
+
+        eval (Sub e1 e2) = do
+          x &lt;- eval e1
+          y &lt;- eval e2
+          case (x, y) of
+            (IntResult x, IntResult y) -&gt; Right $ IntResult (x - y)
+            (BoolResult _, _) -&gt; Left $ TypeError IntTy BoolTy
+            (_, BoolResult _) -&gt; Left $ TypeError IntTy BoolTy
+
+        eval (Mul e1 e2) = do
+          x &lt;- eval e1
+          y &lt;- eval e2
+          case (x, y) of
+            (IntResult x, IntResult y) -&gt; Right $ IntResult (x * y)
+            (BoolResult _, _) -&gt; Left $ TypeError IntTy BoolTy
+            (_, BoolResult _) -&gt; Left $ TypeError IntTy BoolTy
+
+        eval (Div e1 e2) = do
+          x &lt;- eval e1
+          y &lt;- eval e2
+          case (x, y) of
+            (IntResult x, IntResult y) -&gt; Right $ IntResult (x `div` y)
+            (BoolResult _, _) -&gt; Left $ TypeError IntTy BoolTy
+            (_, BoolResult _) -&gt; Left $ TypeError IntTy BoolTy
+
+        eval (Eql e1 e2) = do
+          x &lt;- eval e1
+          y &lt;- eval e2
+          case (x, y) of
+            (IntResult x, IntResult y) -&gt; Right $ BoolResult (x == y)
+            (BoolResult x, BoolResult y) -&gt; Right $ BoolResult (x == y)
+            (IntResult _, _) -&gt; Left $ TypeError IntTy BoolTy
+            (BoolResult _, _) -&gt; Left $ TypeError BoolTy IntTy 
+
+        eval (IfThenElse cond eIf eElse) = do
+          c &lt;- eval cond
+          x &lt;- eval eIf
+          y &lt;- eval eElse
+          case (c, x, y) of
+            (BoolResult c, IntResult x, IntResult y) -&gt;
+              Right $ IntResult $ if c then x else y
+            (BoolResult c, BoolResult x, BoolResult y) -&gt;
+              Right $ BoolResult $ if c then x else y
+            (IntResult _, _, _) -&gt; 
+              Left $ TypeError BoolTy IntTy
+            (_, IntResult _, BoolResult _) -&gt; 
+              Left $ TypeError IntTy BoolTy
+            (_, BoolResult _, IntResult _) -&gt; 
+              Left $ TypeError BoolTy IntTy</code></pre>
+        <p>We can then evaluate both valid and invalid expressions, and verify that the “typechecker” does its job:</p>
+        <pre><code>eval $ IfThenElse (Eql (Mul (Literal 3) (Literal 7)) (Literal 21))
+                          (Literal 1)
+                          (Literal 0)
+        =&gt; Right (IntResult 1)
+
+        eval $ IfThenElse (Eql (Mul (Literal 3) (Literal 7)) (Literal 21))
+                          (Eql (Literal 1) (Literal 1))
+                          (Literal 0)
+        =&gt; Left (TypeError {expected = BoolTy, got = IntTy})</code></pre>
+        <p>Don’t worry, the point isn’t to go into Haskell’s monadic error handling or <code>do</code> syntax. Let’s just observe that our evaluator does work, correctly resolving an integer result from the first conditional, and pointing out that the second conditional provides an “if” branch of yielding a boolean but an “else” branch yielding an integer (that’s the <code>Left (TypeError ..)</code>).</p>
+        <p>However, it was extraordinarily tedious: we had to write out each possible combination of valid and invalid subexpressions for each evaluation rule. What if we could instead ensure that <em>only</em> valid expressions could be constructed?</p>
+        <p>It turns out that we can, using an extension to ADTs known as <em>generalized algebraic data types</em>, or GADTs. GADTs give us the ability to <em>refine</em> the types of our values in each constructor: this permits us to enforce our type safety rules directly in the host language (Haskell) type system, and forbid invalid expressions from even being constructed.</p>
+        <p>As a consequence, our evaluator is back to almost its original simplicity! It no longer has to worry about detecting type errors. Observe:</p>
+        <pre><code>{-# LANGUAGE GADTs #-}
+
+        data Expr a where
+          Literal :: Int -&gt; Expr Int
+          Add :: Expr Int -&gt; Expr Int -&gt; Expr Int
+          Sub :: Expr Int -&gt; Expr Int -&gt; Expr Int
+          Mul :: Expr Int -&gt; Expr Int -&gt; Expr Int
+          Div :: Expr Int -&gt; Expr Int -&gt; Expr Int
+          Eql :: Eq a =&gt; Expr a -&gt; Expr a -&gt; Expr Bool
+          IfThenElse :: Expr Bool -&gt; Expr a -&gt; Expr a -&gt; Expr a
+
+        eval :: Expr a -&gt; a
+        eval (Literal n) = n
+        eval (Add e1 e2) = eval e1 + eval e2
+        eval (Sub e1 e2) = eval e1 - eval e2
+        eval (Mul e1 e2) = eval e1 * eval e2
+        eval (Div e1 e2) = eval e1 `div` eval e2
+        eval (Eql e1 e2) = eval e1 == eval e2
+        eval (IfThenElse cond eIf eElse) = if eval cond then eval eIf else eval eElse</code></pre>
+        <p>We can still construct and evaluate valid expressions, but when we try to construct our “bad example”:</p>
+        <pre><code>let badEx = IfThenElse (Eql (Mul (Literal 3) (Literal 7)) (Literal 21))
+                               (Eql (Literal 1) (Literal 1))
+                               (Literal 0)
+
+        =&gt;
+
+        error:
+          * Couldn&#39;t match type `Int&#39; with `Bool&#39;
+            Expected type: Expr Bool
+              Actual type: Expr Int
+          * In the third argument of `IfThenElse&#39;, namely `(Literal 0)&#39;</code></pre>
+        <p>This is really pretty fantastic! We’ve been able to express our typing rules very directly, have them enforced by our host language, and keep the evaluator simple.</p>
+        <p>Can we get this kind of power in our object-oriented languages? Today’s paper of the day provides an answer: yes, with some caveats, if you have generics (that is, parametric polymorphism of the kind provided by C# or Java).</p>
+        <p>Kennedy and Russo show a translation for GADTs and many GADT-manipulating programs into the type system of C#. Along the way they encounter some rough spots which require the introduction of uncheckable type casts, and suggest some language improvements. C# programmers may notice that the <code>switch</code> enhancement they suggest is similar to the type-based <code>switch</code> that was introduced to the language recently; however, the version suggested by Kennedy and Russo is strictly more powerful, as their <code>switch</code> makes use of the type-refinement provided by GADTs to let the compiler “know more” about the relevant types in each arm of the switch.</p>
+        <p>At the end, they provide typing judgments and evaluation rules for their proposed language extensions; this part gets a bit formal, and given the language evolution since 2015 it’s more of a glimpse into a future that might have been. Nonetheless, I’d encourage any object-oriented programmers (by choice or circumstance) with an interest in more “typeful” data modeling to check out the paper.</p>
+        <p>We’ll try to keep tomorrow’s paper a little lighter and the write-up a little briefer! This one took a bit of justification, as ADTs and GADTs are quite unfamiliar outside of functional programming circles.</p>
+        <!--#include virtual="/include/after.html" -->
+    </body>
+</html>
