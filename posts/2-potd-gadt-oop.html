@@ -13,215 +13,215 @@
         </h2>
         <h3 class="date">2017-11-29</h3>
 
-        <p>Today’s <a href="https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/gadtoop.pdf">POTD</a> presents a translation of a great tool from the functional programming community into the more mundane world of 90s-style object-oriented programming languages.</p>
-        <p>Since this particular idea has been slow to percolate through the programming world at large, this one will take a little buildup.</p>
-        <p>The <em>algebraic data types</em> (ADTs) provided by many functional programming language permit us to easily express recursive, polymorphic data structures built from alternations (sums) or combinations (products) of other types; pattern matching syntax lets us process them straightforwardly.</p>
-        <p>This is extremely helpful when defining “language translators” of the sort that sneak in to every programming project, whether one notices them or not. For example, we might define a simple language of expressions on integers, and an evaluation function for it (in Haskell syntax):</p>
-        <pre class="sourceCode haskell" id="cb1"><code class="sourceCode haskell"><a class="sourceLine" id="cb1-1" data-line-number="1"><span class="kw">data</span> <span class="dt">Expr</span> <span class="fu">=</span></a>
-        <a class="sourceLine" id="cb1-2" data-line-number="2">    <span class="dt">Literal</span> <span class="dt">Int</span></a>
-        <a class="sourceLine" id="cb1-3" data-line-number="3">  <span class="fu">|</span> <span class="dt">Add</span> <span class="dt">Expr</span> <span class="dt">Expr</span></a>
-        <a class="sourceLine" id="cb1-4" data-line-number="4">  <span class="fu">|</span> <span class="dt">Sub</span> <span class="dt">Expr</span> <span class="dt">Expr</span></a>
-        <a class="sourceLine" id="cb1-5" data-line-number="5">  <span class="fu">|</span> <span class="dt">Mul</span> <span class="dt">Expr</span> <span class="dt">Expr</span></a>
-        <a class="sourceLine" id="cb1-6" data-line-number="6">  <span class="fu">|</span> <span class="dt">Div</span> <span class="dt">Expr</span> <span class="dt">Expr</span></a>
-        <a class="sourceLine" id="cb1-7" data-line-number="7"></a>
-        <a class="sourceLine" id="cb1-8" data-line-number="8"><span class="ot">eval ::</span> <span class="dt">Expr</span> <span class="ot">-&gt;</span> <span class="dt">Int</span></a>
-        <a class="sourceLine" id="cb1-9" data-line-number="9">eval (<span class="dt">Literal</span> n) <span class="fu">=</span> n</a>
-        <a class="sourceLine" id="cb1-10" data-line-number="10">eval (<span class="dt">Add</span> e1 e2) <span class="fu">=</span> eval e1 <span class="fu">+</span> eval e2</a>
-        <a class="sourceLine" id="cb1-11" data-line-number="11">eval (<span class="dt">Sub</span> e1 e2) <span class="fu">=</span> eval e1 <span class="fu">-</span> eval e2</a>
-        <a class="sourceLine" id="cb1-12" data-line-number="12">eval (<span class="dt">Mul</span> e1 e2) <span class="fu">=</span> eval e1 <span class="fu">*</span> eval e2</a>
-        <a class="sourceLine" id="cb1-13" data-line-number="13">eval (<span class="dt">Div</span> e1 e2) <span class="fu">=</span> eval e1 <span class="ot">`div`</span> eval e2</a></code></pre>
-        <p>According to the folklore, those of us working in more common object-oriented languages can implement the same logic, using a class hierarchy with dynamic (virtual) dispatch to stand in for our sum type and pattern matching. It’s a little more wordy, but it accomplishes the same goal, and the translation is more-or-less mechanical with some practice. In C# (forgive me: I like lambda syntax and hate boilerplate, so it will be a bit terser than it could have been), we’d have:</p>
-        <pre class="sourceCode c#" id="cb2"><code class="sourceCode cs"><a class="sourceLine" id="cb2-1" data-line-number="1"><span class="co">// we&#39;ll represent our top-level ADT as an abstract class; this is the</span></a>
-        <a class="sourceLine" id="cb2-2" data-line-number="2"><span class="co">//   type we&#39;ll work with in most client code.</span></a>
-        <a class="sourceLine" id="cb2-3" data-line-number="3"><span class="kw">abstract</span> <span class="kw">class</span> Expr {</a>
-        <a class="sourceLine" id="cb2-4" data-line-number="4">    <span class="co">// ADTs are &quot;closed&quot;; that is, the constructors specified in the</span></a>
-        <a class="sourceLine" id="cb2-5" data-line-number="5">    <span class="co">//   type definition are all we&#39;ll ever have: we&#39;ll implement this in</span></a>
-        <a class="sourceLine" id="cb2-6" data-line-number="6">    <span class="co">//   C# by building sealed inner classes with access to a private</span></a>
-        <a class="sourceLine" id="cb2-7" data-line-number="7">    <span class="co">//   constructor</span></a>
-        <a class="sourceLine" id="cb2-8" data-line-number="8">    <span class="kw">private</span> <span class="fu">Expr</span>() { }</a>
-        <a class="sourceLine" id="cb2-9" data-line-number="9"></a>
-        <a class="sourceLine" id="cb2-10" data-line-number="10">    <span class="co">// every function we&#39;d implement by pattern-matching for our ADT</span></a>
-        <a class="sourceLine" id="cb2-11" data-line-number="11">    <span class="co">//   will be an abstract method on the equivalent type</span></a>
-        <a class="sourceLine" id="cb2-12" data-line-number="12">    <span class="kw">public</span> <span class="kw">abstract</span> <span class="dt">int</span> <span class="fu">Eval</span>();</a>
-        <a class="sourceLine" id="cb2-13" data-line-number="13"></a>
-        <a class="sourceLine" id="cb2-14" data-line-number="14">    <span class="kw">public</span> <span class="kw">sealed</span> <span class="kw">class</span> Literal : Expr {</a>
-        <a class="sourceLine" id="cb2-15" data-line-number="15">        <span class="kw">public</span> <span class="dt">int</span> val;</a>
-        <a class="sourceLine" id="cb2-16" data-line-number="16">        <span class="co">// subclasses implement the specific evaluation logic; this is</span></a>
-        <a class="sourceLine" id="cb2-17" data-line-number="17">        <span class="co">//   equivalent to the per-pattern definitions in the ADT version</span></a>
-        <a class="sourceLine" id="cb2-18" data-line-number="18">        <span class="kw">public</span> <span class="kw">override</span> <span class="dt">int</span> <span class="fu">Eval</span>() =&gt; val;</a>
-        <a class="sourceLine" id="cb2-19" data-line-number="19">    }</a>
-        <a class="sourceLine" id="cb2-20" data-line-number="20"></a>
-        <a class="sourceLine" id="cb2-21" data-line-number="21">    <span class="kw">public</span> <span class="kw">sealed</span> <span class="kw">class</span> Add : Expr {</a>
-        <a class="sourceLine" id="cb2-22" data-line-number="22">        <span class="kw">public</span> Expr e1;</a>
-        <a class="sourceLine" id="cb2-23" data-line-number="23">        <span class="kw">public</span> Expr e2;</a>
-        <a class="sourceLine" id="cb2-24" data-line-number="24">        <span class="kw">public</span> <span class="kw">override</span> <span class="dt">int</span> <span class="fu">Eval</span>() =&gt; e1.<span class="fu">Eval</span>() + e2.<span class="fu">Eval</span>();</a>
-        <a class="sourceLine" id="cb2-25" data-line-number="25">    }</a>
-        <a class="sourceLine" id="cb2-26" data-line-number="26"></a>
-        <a class="sourceLine" id="cb2-27" data-line-number="27">    <span class="kw">public</span> <span class="kw">sealed</span> <span class="kw">class</span> Sub : Expr {</a>
-        <a class="sourceLine" id="cb2-28" data-line-number="28">        <span class="kw">public</span> Expr e1;</a>
-        <a class="sourceLine" id="cb2-29" data-line-number="29">        <span class="kw">public</span> Expr e2;</a>
-        <a class="sourceLine" id="cb2-30" data-line-number="30">        <span class="kw">public</span> <span class="kw">override</span> <span class="dt">int</span> <span class="fu">Eval</span>() =&gt; e1.<span class="fu">Eval</span>() - e2.<span class="fu">Eval</span>();</a>
-        <a class="sourceLine" id="cb2-31" data-line-number="31">    }</a>
-        <a class="sourceLine" id="cb2-32" data-line-number="32"></a>
-        <a class="sourceLine" id="cb2-33" data-line-number="33">    <span class="kw">public</span> <span class="kw">sealed</span> <span class="kw">class</span> Mul : Expr {</a>
-        <a class="sourceLine" id="cb2-34" data-line-number="34">        <span class="kw">public</span> Expr e1;</a>
-        <a class="sourceLine" id="cb2-35" data-line-number="35">        <span class="kw">public</span> Expr e2;</a>
-        <a class="sourceLine" id="cb2-36" data-line-number="36">        <span class="kw">public</span> <span class="kw">override</span> <span class="dt">int</span> <span class="fu">Eval</span>() =&gt; e1.<span class="fu">Eval</span>() * e2.<span class="fu">Eval</span>();</a>
-        <a class="sourceLine" id="cb2-37" data-line-number="37">    }</a>
-        <a class="sourceLine" id="cb2-38" data-line-number="38"></a>
-        <a class="sourceLine" id="cb2-39" data-line-number="39">    <span class="kw">public</span> <span class="kw">sealed</span> <span class="kw">class</span> Div : Expr {</a>
-        <a class="sourceLine" id="cb2-40" data-line-number="40">        <span class="kw">public</span> Expr e1;</a>
-        <a class="sourceLine" id="cb2-41" data-line-number="41">        <span class="kw">public</span> Expr e2;</a>
-        <a class="sourceLine" id="cb2-42" data-line-number="42">        <span class="kw">public</span> <span class="kw">override</span> <span class="dt">int</span> <span class="fu">Eval</span>() =&gt; e1.<span class="fu">Eval</span>() / e2.<span class="fu">Eval</span>();</a>
-        <a class="sourceLine" id="cb2-43" data-line-number="43">    }</a>
-        <a class="sourceLine" id="cb2-44" data-line-number="44">}</a>
-        <a class="sourceLine" id="cb2-45" data-line-number="45"></a>
-        <a class="sourceLine" id="cb2-46" data-line-number="46"><span class="co">// we can use our type like so:</span></a>
-        <a class="sourceLine" id="cb2-47" data-line-number="47"><span class="kw">class</span> ExprDemo {</a>
-        <a class="sourceLine" id="cb2-48" data-line-number="48">    <span class="kw">static</span> <span class="dt">void</span> <span class="fu">Main</span>()</a>
-        <a class="sourceLine" id="cb2-49" data-line-number="49">    {</a>
-        <a class="sourceLine" id="cb2-50" data-line-number="50">        <span class="dt">var</span> e = <span class="kw">new</span> Expr.<span class="fu">Add</span> {</a>
-        <a class="sourceLine" id="cb2-51" data-line-number="51">            e1 = <span class="kw">new</span> Expr.<span class="fu">Literal</span> { val = <span class="dv">7</span> },</a>
-        <a class="sourceLine" id="cb2-52" data-line-number="52">            e2 = <span class="kw">new</span> Expr.<span class="fu">Mul</span> {</a>
-        <a class="sourceLine" id="cb2-53" data-line-number="53">                e1 = <span class="kw">new</span> Expr.<span class="fu">Literal</span> { val = <span class="dv">3</span> },</a>
-        <a class="sourceLine" id="cb2-54" data-line-number="54">                e2 = <span class="kw">new</span> Expr.<span class="fu">Literal</span> { val = <span class="dv">5</span> }</a>
-        <a class="sourceLine" id="cb2-55" data-line-number="55">            }</a>
-        <a class="sourceLine" id="cb2-56" data-line-number="56">        };</a>
-        <a class="sourceLine" id="cb2-57" data-line-number="57"></a>
-        <a class="sourceLine" id="cb2-58" data-line-number="58">        <span class="co">// prints &quot;e.Eval() = 22&quot;</span></a>
-        <a class="sourceLine" id="cb2-59" data-line-number="59">        System.<span class="fu">Console</span>.<span class="fu">WriteLine</span>(<span class="st">&quot;e.Eval() = {0}&quot;</span>, e.<span class="fu">Eval</span>());</a>
-        <a class="sourceLine" id="cb2-60" data-line-number="60">    }</a>
-        <a class="sourceLine" id="cb2-61" data-line-number="61">}</a></code></pre>
-        <p>Suppose we extend our little “language” to include not just integer values and integer arithmetic, but an equality test (produing a boolean value) and a conditional (if-then-else) operation. Back to Haskell!</p>
-        <pre class="sourceCode haskell" id="cb3"><code class="sourceCode haskell"><a class="sourceLine" id="cb3-1" data-line-number="1"><span class="kw">data</span> <span class="dt">Expr</span> <span class="fu">=</span></a>
-        <a class="sourceLine" id="cb3-2" data-line-number="2">    <span class="dt">Literal</span> <span class="dt">Int</span></a>
-        <a class="sourceLine" id="cb3-3" data-line-number="3">  <span class="fu">|</span> <span class="dt">Add</span> <span class="dt">Expr</span> <span class="dt">Expr</span></a>
-        <a class="sourceLine" id="cb3-4" data-line-number="4">  <span class="fu">|</span> <span class="dt">Sub</span> <span class="dt">Expr</span> <span class="dt">Expr</span></a>
-        <a class="sourceLine" id="cb3-5" data-line-number="5">  <span class="fu">|</span> <span class="dt">Mul</span> <span class="dt">Expr</span> <span class="dt">Expr</span></a>
-        <a class="sourceLine" id="cb3-6" data-line-number="6">  <span class="fu">|</span> <span class="dt">Div</span> <span class="dt">Expr</span> <span class="dt">Expr</span></a>
-        <a class="sourceLine" id="cb3-7" data-line-number="7">  <span class="fu">|</span> <span class="dt">Eql</span> <span class="dt">Expr</span> <span class="dt">Expr</span></a>
-        <a class="sourceLine" id="cb3-8" data-line-number="8">  <span class="fu">|</span> <span class="dt">IfThenElse</span> <span class="dt">Expr</span> <span class="dt">Expr</span> <span class="dt">Expr</span></a></code></pre>
-        <p>The types for the interpreter aren’t entirely obvious; the <code>Eql</code> operation should compare two expressions which produce the same type (either an integer or a boolean) for equality, while the <code>IfThenElse</code> operation requires one expression which definitely evaluates to a boolean (the condition) and two others of matching type (the if-branch result and the else-branch result).</p>
-        <p>One possibility is to do the check and produce either a meaningful result of appropriate type, or an error value. Like so:</p>
-        <pre class="sourceCode haskell" id="cb4"><code class="sourceCode haskell"><a class="sourceLine" id="cb4-1" data-line-number="1"><span class="kw">data</span> <span class="dt">ExprResult</span> <span class="fu">=</span></a>
-        <a class="sourceLine" id="cb4-2" data-line-number="2">    <span class="dt">IntResult</span> <span class="dt">Int</span></a>
-        <a class="sourceLine" id="cb4-3" data-line-number="3">  <span class="fu">|</span> <span class="dt">BoolResult</span> <span class="dt">Bool</span></a>
-        <a class="sourceLine" id="cb4-4" data-line-number="4">  <span class="kw">deriving</span> <span class="dt">Show</span></a>
-        <a class="sourceLine" id="cb4-5" data-line-number="5"></a>
-        <a class="sourceLine" id="cb4-6" data-line-number="6"><span class="kw">data</span> <span class="dt">ExprTy</span> <span class="fu">=</span> <span class="dt">IntTy</span> <span class="fu">|</span> <span class="dt">BoolTy</span> <span class="kw">deriving</span> <span class="dt">Show</span></a>
-        <a class="sourceLine" id="cb4-7" data-line-number="7"><span class="kw">data</span> <span class="dt">TypeError</span> <span class="fu">=</span> <span class="dt">TypeError</span> {<span class="ot"> expected ::</span> <span class="dt">ExprTy</span> ,<span class="ot"> got ::</span> <span class="dt">ExprTy</span> }</a>
-        <a class="sourceLine" id="cb4-8" data-line-number="8">  <span class="kw">deriving</span> <span class="dt">Show</span></a>
-        <a class="sourceLine" id="cb4-9" data-line-number="9"></a>
-        <a class="sourceLine" id="cb4-10" data-line-number="10"><span class="ot">eval ::</span> <span class="dt">Expr</span> <span class="ot">-&gt;</span> <span class="dt">Either</span> <span class="dt">TypeError</span> <span class="dt">ExprResult</span></a>
-        <a class="sourceLine" id="cb4-11" data-line-number="11"></a>
-        <a class="sourceLine" id="cb4-12" data-line-number="12">eval (<span class="dt">Literal</span> n) <span class="fu">=</span> <span class="dt">Right</span> (<span class="dt">IntResult</span> n)</a>
-        <a class="sourceLine" id="cb4-13" data-line-number="13"></a>
-        <a class="sourceLine" id="cb4-14" data-line-number="14">eval (<span class="dt">Add</span> e1 e2) <span class="fu">=</span> <span class="kw">do</span></a>
-        <a class="sourceLine" id="cb4-15" data-line-number="15">  x <span class="ot">&lt;-</span> eval e1</a>
-        <a class="sourceLine" id="cb4-16" data-line-number="16">  y <span class="ot">&lt;-</span> eval e2</a>
-        <a class="sourceLine" id="cb4-17" data-line-number="17">  <span class="kw">case</span> (x, y) <span class="kw">of</span></a>
-        <a class="sourceLine" id="cb4-18" data-line-number="18">    (<span class="dt">IntResult</span> x, <span class="dt">IntResult</span> y) <span class="ot">-&gt;</span> <span class="dt">Right</span> <span class="fu">$</span> <span class="dt">IntResult</span> (x <span class="fu">+</span> y)</a>
-        <a class="sourceLine" id="cb4-19" data-line-number="19">    (<span class="dt">BoolResult</span> _, _) <span class="ot">-&gt;</span> <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">IntTy</span> <span class="dt">BoolTy</span></a>
-        <a class="sourceLine" id="cb4-20" data-line-number="20">    (_, <span class="dt">BoolResult</span> _) <span class="ot">-&gt;</span> <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">IntTy</span> <span class="dt">BoolTy</span></a>
-        <a class="sourceLine" id="cb4-21" data-line-number="21"></a>
-        <a class="sourceLine" id="cb4-22" data-line-number="22">eval (<span class="dt">Sub</span> e1 e2) <span class="fu">=</span> <span class="kw">do</span></a>
-        <a class="sourceLine" id="cb4-23" data-line-number="23">  x <span class="ot">&lt;-</span> eval e1</a>
-        <a class="sourceLine" id="cb4-24" data-line-number="24">  y <span class="ot">&lt;-</span> eval e2</a>
-        <a class="sourceLine" id="cb4-25" data-line-number="25">  <span class="kw">case</span> (x, y) <span class="kw">of</span></a>
-        <a class="sourceLine" id="cb4-26" data-line-number="26">    (<span class="dt">IntResult</span> x, <span class="dt">IntResult</span> y) <span class="ot">-&gt;</span> <span class="dt">Right</span> <span class="fu">$</span> <span class="dt">IntResult</span> (x <span class="fu">-</span> y)</a>
-        <a class="sourceLine" id="cb4-27" data-line-number="27">    (<span class="dt">BoolResult</span> _, _) <span class="ot">-&gt;</span> <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">IntTy</span> <span class="dt">BoolTy</span></a>
-        <a class="sourceLine" id="cb4-28" data-line-number="28">    (_, <span class="dt">BoolResult</span> _) <span class="ot">-&gt;</span> <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">IntTy</span> <span class="dt">BoolTy</span></a>
-        <a class="sourceLine" id="cb4-29" data-line-number="29"></a>
-        <a class="sourceLine" id="cb4-30" data-line-number="30">eval (<span class="dt">Mul</span> e1 e2) <span class="fu">=</span> <span class="kw">do</span></a>
-        <a class="sourceLine" id="cb4-31" data-line-number="31">  x <span class="ot">&lt;-</span> eval e1</a>
-        <a class="sourceLine" id="cb4-32" data-line-number="32">  y <span class="ot">&lt;-</span> eval e2</a>
-        <a class="sourceLine" id="cb4-33" data-line-number="33">  <span class="kw">case</span> (x, y) <span class="kw">of</span></a>
-        <a class="sourceLine" id="cb4-34" data-line-number="34">    (<span class="dt">IntResult</span> x, <span class="dt">IntResult</span> y) <span class="ot">-&gt;</span> <span class="dt">Right</span> <span class="fu">$</span> <span class="dt">IntResult</span> (x <span class="fu">*</span> y)</a>
-        <a class="sourceLine" id="cb4-35" data-line-number="35">    (<span class="dt">BoolResult</span> _, _) <span class="ot">-&gt;</span> <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">IntTy</span> <span class="dt">BoolTy</span></a>
-        <a class="sourceLine" id="cb4-36" data-line-number="36">    (_, <span class="dt">BoolResult</span> _) <span class="ot">-&gt;</span> <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">IntTy</span> <span class="dt">BoolTy</span></a>
-        <a class="sourceLine" id="cb4-37" data-line-number="37"></a>
-        <a class="sourceLine" id="cb4-38" data-line-number="38">eval (<span class="dt">Div</span> e1 e2) <span class="fu">=</span> <span class="kw">do</span></a>
-        <a class="sourceLine" id="cb4-39" data-line-number="39">  x <span class="ot">&lt;-</span> eval e1</a>
-        <a class="sourceLine" id="cb4-40" data-line-number="40">  y <span class="ot">&lt;-</span> eval e2</a>
-        <a class="sourceLine" id="cb4-41" data-line-number="41">  <span class="kw">case</span> (x, y) <span class="kw">of</span></a>
-        <a class="sourceLine" id="cb4-42" data-line-number="42">    (<span class="dt">IntResult</span> x, <span class="dt">IntResult</span> y) <span class="ot">-&gt;</span> <span class="dt">Right</span> <span class="fu">$</span> <span class="dt">IntResult</span> (x <span class="ot">`div`</span> y)</a>
-        <a class="sourceLine" id="cb4-43" data-line-number="43">    (<span class="dt">BoolResult</span> _, _) <span class="ot">-&gt;</span> <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">IntTy</span> <span class="dt">BoolTy</span></a>
-        <a class="sourceLine" id="cb4-44" data-line-number="44">    (_, <span class="dt">BoolResult</span> _) <span class="ot">-&gt;</span> <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">IntTy</span> <span class="dt">BoolTy</span></a>
-        <a class="sourceLine" id="cb4-45" data-line-number="45"></a>
-        <a class="sourceLine" id="cb4-46" data-line-number="46">eval (<span class="dt">Eql</span> e1 e2) <span class="fu">=</span> <span class="kw">do</span></a>
-        <a class="sourceLine" id="cb4-47" data-line-number="47">  x <span class="ot">&lt;-</span> eval e1</a>
-        <a class="sourceLine" id="cb4-48" data-line-number="48">  y <span class="ot">&lt;-</span> eval e2</a>
-        <a class="sourceLine" id="cb4-49" data-line-number="49">  <span class="kw">case</span> (x, y) <span class="kw">of</span></a>
-        <a class="sourceLine" id="cb4-50" data-line-number="50">    (<span class="dt">IntResult</span> x, <span class="dt">IntResult</span> y) <span class="ot">-&gt;</span> <span class="dt">Right</span> <span class="fu">$</span> <span class="dt">BoolResult</span> (x <span class="fu">==</span> y)</a>
-        <a class="sourceLine" id="cb4-51" data-line-number="51">    (<span class="dt">BoolResult</span> x, <span class="dt">BoolResult</span> y) <span class="ot">-&gt;</span> <span class="dt">Right</span> <span class="fu">$</span> <span class="dt">BoolResult</span> (x <span class="fu">==</span> y)</a>
-        <a class="sourceLine" id="cb4-52" data-line-number="52">    (<span class="dt">IntResult</span> _, _) <span class="ot">-&gt;</span> <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">IntTy</span> <span class="dt">BoolTy</span></a>
-        <a class="sourceLine" id="cb4-53" data-line-number="53">    (<span class="dt">BoolResult</span> _, _) <span class="ot">-&gt;</span> <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">BoolTy</span> <span class="dt">IntTy</span> </a>
-        <a class="sourceLine" id="cb4-54" data-line-number="54"></a>
-        <a class="sourceLine" id="cb4-55" data-line-number="55">eval (<span class="dt">IfThenElse</span> cond eIf eElse) <span class="fu">=</span> <span class="kw">do</span></a>
-        <a class="sourceLine" id="cb4-56" data-line-number="56">  c <span class="ot">&lt;-</span> eval cond</a>
-        <a class="sourceLine" id="cb4-57" data-line-number="57">  x <span class="ot">&lt;-</span> eval eIf</a>
-        <a class="sourceLine" id="cb4-58" data-line-number="58">  y <span class="ot">&lt;-</span> eval eElse</a>
-        <a class="sourceLine" id="cb4-59" data-line-number="59">  <span class="kw">case</span> (c, x, y) <span class="kw">of</span></a>
-        <a class="sourceLine" id="cb4-60" data-line-number="60">    (<span class="dt">BoolResult</span> c, <span class="dt">IntResult</span> x, <span class="dt">IntResult</span> y) <span class="ot">-&gt;</span></a>
-        <a class="sourceLine" id="cb4-61" data-line-number="61">      <span class="dt">Right</span> <span class="fu">$</span> <span class="dt">IntResult</span> <span class="fu">$</span> <span class="kw">if</span> c <span class="kw">then</span> x <span class="kw">else</span> y</a>
-        <a class="sourceLine" id="cb4-62" data-line-number="62">    (<span class="dt">BoolResult</span> c, <span class="dt">BoolResult</span> x, <span class="dt">BoolResult</span> y) <span class="ot">-&gt;</span></a>
-        <a class="sourceLine" id="cb4-63" data-line-number="63">      <span class="dt">Right</span> <span class="fu">$</span> <span class="dt">BoolResult</span> <span class="fu">$</span> <span class="kw">if</span> c <span class="kw">then</span> x <span class="kw">else</span> y</a>
-        <a class="sourceLine" id="cb4-64" data-line-number="64">    (<span class="dt">IntResult</span> _, _, _) <span class="ot">-&gt;</span> </a>
-        <a class="sourceLine" id="cb4-65" data-line-number="65">      <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">BoolTy</span> <span class="dt">IntTy</span></a>
-        <a class="sourceLine" id="cb4-66" data-line-number="66">    (_, <span class="dt">IntResult</span> _, <span class="dt">BoolResult</span> _) <span class="ot">-&gt;</span> </a>
-        <a class="sourceLine" id="cb4-67" data-line-number="67">      <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">IntTy</span> <span class="dt">BoolTy</span></a>
-        <a class="sourceLine" id="cb4-68" data-line-number="68">    (_, <span class="dt">BoolResult</span> _, <span class="dt">IntResult</span> _) <span class="ot">-&gt;</span> </a>
-        <a class="sourceLine" id="cb4-69" data-line-number="69">      <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">BoolTy</span> <span class="dt">IntTy</span></a></code></pre>
-        <p>We can then evaluate both valid and invalid expressions, and verify that the “typechecker” does its job:</p>
-        <pre class="sourceCode haskell" id="cb5"><code class="sourceCode haskell"><a class="sourceLine" id="cb5-1" data-line-number="1">eval <span class="fu">$</span> <span class="dt">IfThenElse</span> (<span class="dt">Eql</span> (<span class="dt">Mul</span> (<span class="dt">Literal</span> <span class="dv">3</span>) (<span class="dt">Literal</span> <span class="dv">7</span>)) (<span class="dt">Literal</span> <span class="dv">21</span>))</a>
-        <a class="sourceLine" id="cb5-2" data-line-number="2">                  (<span class="dt">Literal</span> <span class="dv">1</span>)</a>
-        <a class="sourceLine" id="cb5-3" data-line-number="3">                  (<span class="dt">Literal</span> <span class="dv">0</span>)</a>
-        <a class="sourceLine" id="cb5-4" data-line-number="4"><span class="ot">=&gt;</span> <span class="dt">Right</span> (<span class="dt">IntResult</span> <span class="dv">1</span>)</a>
-        <a class="sourceLine" id="cb5-5" data-line-number="5"></a>
-        <a class="sourceLine" id="cb5-6" data-line-number="6">eval <span class="fu">$</span> <span class="dt">IfThenElse</span> (<span class="dt">Eql</span> (<span class="dt">Mul</span> (<span class="dt">Literal</span> <span class="dv">3</span>) (<span class="dt">Literal</span> <span class="dv">7</span>)) (<span class="dt">Literal</span> <span class="dv">21</span>))</a>
-        <a class="sourceLine" id="cb5-7" data-line-number="7">                  (<span class="dt">Eql</span> (<span class="dt">Literal</span> <span class="dv">1</span>) (<span class="dt">Literal</span> <span class="dv">1</span>))</a>
-        <a class="sourceLine" id="cb5-8" data-line-number="8">                  (<span class="dt">Literal</span> <span class="dv">0</span>)</a>
-        <a class="sourceLine" id="cb5-9" data-line-number="9"><span class="ot">=&gt;</span> <span class="dt">Left</span> (<span class="dt">TypeError</span> {expected <span class="fu">=</span> <span class="dt">BoolTy</span>, got <span class="fu">=</span> <span class="dt">IntTy</span>})</a></code></pre>
-        <p>Don’t worry, the point isn’t to go into Haskell’s monadic error handling or <code>do</code> syntax. Let’s just observe that our evaluator does work, correctly resolving an integer result from the first conditional, and pointing out that the second conditional provides an “if” branch of yielding a boolean but an “else” branch yielding an integer (that’s the <code>Left (TypeError ..)</code>).</p>
-        <p>However, it was extraordinarily tedious: we had to write out each possible combination of valid and invalid subexpressions for each evaluation rule. What if we could instead ensure that <em>only</em> valid expressions could be constructed?</p>
-        <p>It turns out that we can, using an extension to ADTs known as <em>generalized algebraic data types</em>, or GADTs. GADTs give us the ability to <em>refine</em> the types of our values in each constructor: this permits us to enforce our type safety rules directly in the host language (Haskell) type system, and forbid invalid expressions from even being constructed.</p>
-        <p>As a consequence, our evaluator is back to almost its original simplicity! It no longer has to worry about detecting type errors. Observe:</p>
-        <pre class="sourceCode haskell" id="cb6"><code class="sourceCode haskell"><a class="sourceLine" id="cb6-1" data-line-number="1"><span class="ot">{-# LANGUAGE GADTs #-}</span></a>
-        <a class="sourceLine" id="cb6-2" data-line-number="2"></a>
-        <a class="sourceLine" id="cb6-3" data-line-number="3"><span class="kw">data</span> <span class="dt">Expr</span> a <span class="kw">where</span></a>
-        <a class="sourceLine" id="cb6-4" data-line-number="4">  <span class="dt">Literal</span><span class="ot"> ::</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="dt">Int</span></a>
-        <a class="sourceLine" id="cb6-5" data-line-number="5">  <span class="dt">Add</span><span class="ot"> ::</span> <span class="dt">Expr</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="dt">Int</span></a>
-        <a class="sourceLine" id="cb6-6" data-line-number="6">  <span class="dt">Sub</span><span class="ot"> ::</span> <span class="dt">Expr</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="dt">Int</span></a>
-        <a class="sourceLine" id="cb6-7" data-line-number="7">  <span class="dt">Mul</span><span class="ot"> ::</span> <span class="dt">Expr</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="dt">Int</span></a>
-        <a class="sourceLine" id="cb6-8" data-line-number="8">  <span class="dt">Div</span><span class="ot"> ::</span> <span class="dt">Expr</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="dt">Int</span></a>
-        <a class="sourceLine" id="cb6-9" data-line-number="9">  <span class="dt">Eql</span><span class="ot"> ::</span> <span class="dt">Eq</span> a <span class="ot">=&gt;</span> <span class="dt">Expr</span> a <span class="ot">-&gt;</span> <span class="dt">Expr</span> a <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="dt">Bool</span></a>
-        <a class="sourceLine" id="cb6-10" data-line-number="10">  <span class="dt">IfThenElse</span><span class="ot"> ::</span> <span class="dt">Expr</span> <span class="dt">Bool</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> a <span class="ot">-&gt;</span> <span class="dt">Expr</span> a <span class="ot">-&gt;</span> <span class="dt">Expr</span> a</a>
-        <a class="sourceLine" id="cb6-11" data-line-number="11"></a>
-        <a class="sourceLine" id="cb6-12" data-line-number="12"><span class="ot">eval ::</span> <span class="dt">Expr</span> a <span class="ot">-&gt;</span> a</a>
-        <a class="sourceLine" id="cb6-13" data-line-number="13">eval (<span class="dt">Literal</span> n) <span class="fu">=</span> n</a>
-        <a class="sourceLine" id="cb6-14" data-line-number="14">eval (<span class="dt">Add</span> e1 e2) <span class="fu">=</span> eval e1 <span class="fu">+</span> eval e2</a>
-        <a class="sourceLine" id="cb6-15" data-line-number="15">eval (<span class="dt">Sub</span> e1 e2) <span class="fu">=</span> eval e1 <span class="fu">-</span> eval e2</a>
-        <a class="sourceLine" id="cb6-16" data-line-number="16">eval (<span class="dt">Mul</span> e1 e2) <span class="fu">=</span> eval e1 <span class="fu">*</span> eval e2</a>
-        <a class="sourceLine" id="cb6-17" data-line-number="17">eval (<span class="dt">Div</span> e1 e2) <span class="fu">=</span> eval e1 <span class="ot">`div`</span> eval e2</a>
-        <a class="sourceLine" id="cb6-18" data-line-number="18">eval (<span class="dt">Eql</span> e1 e2) <span class="fu">=</span> eval e1 <span class="fu">==</span> eval e2</a>
-        <a class="sourceLine" id="cb6-19" data-line-number="19">eval (<span class="dt">IfThenElse</span> cond eIf eElse) <span class="fu">=</span> <span class="kw">if</span> eval cond <span class="kw">then</span> eval eIf <span class="kw">else</span> eval eElse</a></code></pre>
-        <p>We can still construct and evaluate valid expressions, but when we try to construct our “bad example”:</p>
-        <pre class="sourceCode haskell" id="cb7"><code class="sourceCode haskell"><a class="sourceLine" id="cb7-1" data-line-number="1"><span class="kw">let</span> badEx <span class="fu">=</span> <span class="dt">IfThenElse</span> (<span class="dt">Eql</span> (<span class="dt">Mul</span> (<span class="dt">Literal</span> <span class="dv">3</span>) (<span class="dt">Literal</span> <span class="dv">7</span>)) (<span class="dt">Literal</span> <span class="dv">21</span>))</a>
-        <a class="sourceLine" id="cb7-2" data-line-number="2">                       (<span class="dt">Eql</span> (<span class="dt">Literal</span> <span class="dv">1</span>) (<span class="dt">Literal</span> <span class="dv">1</span>))</a>
-        <a class="sourceLine" id="cb7-3" data-line-number="3">                       (<span class="dt">Literal</span> <span class="dv">0</span>)</a>
-        <a class="sourceLine" id="cb7-4" data-line-number="4"></a>
-        <a class="sourceLine" id="cb7-5" data-line-number="5"><span class="ot">=&gt;</span></a>
-        <a class="sourceLine" id="cb7-6" data-line-number="6"></a>
-        <a class="sourceLine" id="cb7-7" data-line-number="7">error<span class="fu">:</span></a>
-        <a class="sourceLine" id="cb7-8" data-line-number="8">  <span class="fu">*</span> <span class="dt">Couldn&#39;t</span> match <span class="kw">type</span> <span class="ot">`Int&#39; with `</span><span class="dt">Bool&#39;</span></a>
-        <a class="sourceLine" id="cb7-9" data-line-number="9">    <span class="dt">Expected</span> <span class="kw">type</span><span class="fu">:</span> <span class="dt">Expr</span> <span class="dt">Bool</span></a>
-        <a class="sourceLine" id="cb7-10" data-line-number="10">      <span class="dt">Actual</span> <span class="kw">type</span><span class="fu">:</span> <span class="dt">Expr</span> <span class="dt">Int</span></a>
-        <a class="sourceLine" id="cb7-11" data-line-number="11">  <span class="fu">*</span> <span class="dt">In</span> the third argument <span class="kw">of</span> <span class="ot">`IfThenElse&#39;, namely `</span>(<span class="dt">Literal</span> <span class="dv">0</span>)<span class="ch">&#39;</span></a></code></pre>
-        <p>This is really pretty fantastic! We’ve been able to express our typing rules very directly, have them enforced by our host language, and keep the evaluator simple.</p>
-        <p>Can we get this kind of power in our object-oriented languages? Today’s paper of the day provides an answer: yes, with some caveats, if you have generics (that is, parametric polymorphism of the kind provided by C# or Java).</p>
-        <p>Kennedy and Russo show a translation for GADTs and many GADT-manipulating programs into the type system of C#. Along the way they encounter some rough spots which require the introduction of uncheckable type casts, and suggest some language improvements. C# programmers may notice that the <code>switch</code> enhancement they suggest is similar to the type-based <code>switch</code> that was introduced to the language recently; however, the version suggested by Kennedy and Russo is strictly more powerful, as their <code>switch</code> makes use of the type-refinement provided by GADTs to let the compiler “know more” about the relevant types in each arm of the switch.</p>
-        <p>At the end, they provide typing judgments and evaluation rules for their proposed language extensions; this part gets a bit formal, and given the language evolution since 2015 it’s more of a glimpse into a future that might have been. Nonetheless, I’d encourage any object-oriented programmers (by choice or circumstance) with an interest in more “typeful” data modeling to check out the paper.</p>
-        <p>We’ll try to keep tomorrow’s paper a little lighter and the write-up a little briefer! This one took a bit of justification, as ADTs and GADTs are quite unfamiliar outside of functional programming circles.</p>
+<p>Today’s <a href="https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/gadtoop.pdf">POTD</a> presents a translation of a great tool from the functional programming community into the more mundane world of 90s-style object-oriented programming languages.</p>
+<p>Since this particular idea has been slow to percolate through the programming world at large, this one will take a little buildup.</p>
+<p>The <em>algebraic data types</em> (ADTs) provided by many functional programming language permit us to easily express recursive, polymorphic data structures built from alternations (sums) or combinations (products) of other types; pattern matching syntax lets us process them straightforwardly.</p>
+<p>This is extremely helpful when defining “language translators” of the sort that sneak in to every programming project, whether one notices them or not. For example, we might define a simple language of expressions on integers, and an evaluation function for it (in Haskell syntax):</p>
+<pre class="sourceCode haskell" id="cb1"><code class="sourceCode haskell"><a class="sourceLine" id="cb1-1" data-line-number="1"><span class="kw">data</span> <span class="dt">Expr</span> <span class="fu">=</span></a>
+<a class="sourceLine" id="cb1-2" data-line-number="2">    <span class="dt">Literal</span> <span class="dt">Int</span></a>
+<a class="sourceLine" id="cb1-3" data-line-number="3">  <span class="fu">|</span> <span class="dt">Add</span> <span class="dt">Expr</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb1-4" data-line-number="4">  <span class="fu">|</span> <span class="dt">Sub</span> <span class="dt">Expr</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb1-5" data-line-number="5">  <span class="fu">|</span> <span class="dt">Mul</span> <span class="dt">Expr</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb1-6" data-line-number="6">  <span class="fu">|</span> <span class="dt">Div</span> <span class="dt">Expr</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb1-7" data-line-number="7"></a>
+<a class="sourceLine" id="cb1-8" data-line-number="8"><span class="ot">eval ::</span> <span class="dt">Expr</span> <span class="ot">-&gt;</span> <span class="dt">Int</span></a>
+<a class="sourceLine" id="cb1-9" data-line-number="9">eval (<span class="dt">Literal</span> n) <span class="fu">=</span> n</a>
+<a class="sourceLine" id="cb1-10" data-line-number="10">eval (<span class="dt">Add</span> e1 e2) <span class="fu">=</span> eval e1 <span class="fu">+</span> eval e2</a>
+<a class="sourceLine" id="cb1-11" data-line-number="11">eval (<span class="dt">Sub</span> e1 e2) <span class="fu">=</span> eval e1 <span class="fu">-</span> eval e2</a>
+<a class="sourceLine" id="cb1-12" data-line-number="12">eval (<span class="dt">Mul</span> e1 e2) <span class="fu">=</span> eval e1 <span class="fu">*</span> eval e2</a>
+<a class="sourceLine" id="cb1-13" data-line-number="13">eval (<span class="dt">Div</span> e1 e2) <span class="fu">=</span> eval e1 <span class="ot">`div`</span> eval e2</a></code></pre>
+<p>According to the folklore, those of us working in more common object-oriented languages can implement the same logic, using a class hierarchy with dynamic (virtual) dispatch to stand in for our sum type and pattern matching. It’s a little more wordy, but it accomplishes the same goal, and the translation is more-or-less mechanical with some practice. In C# (forgive me: I like lambda syntax and hate boilerplate, so it will be a bit terser than it could have been), we’d have:</p>
+<pre class="sourceCode c#" id="cb2"><code class="sourceCode cs"><a class="sourceLine" id="cb2-1" data-line-number="1"><span class="co">// we&#39;ll represent our top-level ADT as an abstract class; this is the</span></a>
+<a class="sourceLine" id="cb2-2" data-line-number="2"><span class="co">//   type we&#39;ll work with in most client code.</span></a>
+<a class="sourceLine" id="cb2-3" data-line-number="3"><span class="kw">abstract</span> <span class="kw">class</span> Expr {</a>
+<a class="sourceLine" id="cb2-4" data-line-number="4">    <span class="co">// ADTs are &quot;closed&quot;; that is, the constructors specified in the</span></a>
+<a class="sourceLine" id="cb2-5" data-line-number="5">    <span class="co">//   type definition are all we&#39;ll ever have: we&#39;ll implement this in</span></a>
+<a class="sourceLine" id="cb2-6" data-line-number="6">    <span class="co">//   C# by building sealed inner classes with access to a private</span></a>
+<a class="sourceLine" id="cb2-7" data-line-number="7">    <span class="co">//   constructor</span></a>
+<a class="sourceLine" id="cb2-8" data-line-number="8">    <span class="kw">private</span> <span class="fu">Expr</span>() { }</a>
+<a class="sourceLine" id="cb2-9" data-line-number="9"></a>
+<a class="sourceLine" id="cb2-10" data-line-number="10">    <span class="co">// every function we&#39;d implement by pattern-matching for our ADT</span></a>
+<a class="sourceLine" id="cb2-11" data-line-number="11">    <span class="co">//   will be an abstract method on the equivalent type</span></a>
+<a class="sourceLine" id="cb2-12" data-line-number="12">    <span class="kw">public</span> <span class="kw">abstract</span> <span class="dt">int</span> <span class="fu">Eval</span>();</a>
+<a class="sourceLine" id="cb2-13" data-line-number="13"></a>
+<a class="sourceLine" id="cb2-14" data-line-number="14">    <span class="kw">public</span> <span class="kw">sealed</span> <span class="kw">class</span> Literal : Expr {</a>
+<a class="sourceLine" id="cb2-15" data-line-number="15">        <span class="kw">public</span> <span class="dt">int</span> val;</a>
+<a class="sourceLine" id="cb2-16" data-line-number="16">        <span class="co">// subclasses implement the specific evaluation logic; this is</span></a>
+<a class="sourceLine" id="cb2-17" data-line-number="17">        <span class="co">//   equivalent to the per-pattern definitions in the ADT version</span></a>
+<a class="sourceLine" id="cb2-18" data-line-number="18">        <span class="kw">public</span> <span class="kw">override</span> <span class="dt">int</span> <span class="fu">Eval</span>() =&gt; val;</a>
+<a class="sourceLine" id="cb2-19" data-line-number="19">    }</a>
+<a class="sourceLine" id="cb2-20" data-line-number="20"></a>
+<a class="sourceLine" id="cb2-21" data-line-number="21">    <span class="kw">public</span> <span class="kw">sealed</span> <span class="kw">class</span> Add : Expr {</a>
+<a class="sourceLine" id="cb2-22" data-line-number="22">        <span class="kw">public</span> Expr e1;</a>
+<a class="sourceLine" id="cb2-23" data-line-number="23">        <span class="kw">public</span> Expr e2;</a>
+<a class="sourceLine" id="cb2-24" data-line-number="24">        <span class="kw">public</span> <span class="kw">override</span> <span class="dt">int</span> <span class="fu">Eval</span>() =&gt; e1.<span class="fu">Eval</span>() + e2.<span class="fu">Eval</span>();</a>
+<a class="sourceLine" id="cb2-25" data-line-number="25">    }</a>
+<a class="sourceLine" id="cb2-26" data-line-number="26"></a>
+<a class="sourceLine" id="cb2-27" data-line-number="27">    <span class="kw">public</span> <span class="kw">sealed</span> <span class="kw">class</span> Sub : Expr {</a>
+<a class="sourceLine" id="cb2-28" data-line-number="28">        <span class="kw">public</span> Expr e1;</a>
+<a class="sourceLine" id="cb2-29" data-line-number="29">        <span class="kw">public</span> Expr e2;</a>
+<a class="sourceLine" id="cb2-30" data-line-number="30">        <span class="kw">public</span> <span class="kw">override</span> <span class="dt">int</span> <span class="fu">Eval</span>() =&gt; e1.<span class="fu">Eval</span>() - e2.<span class="fu">Eval</span>();</a>
+<a class="sourceLine" id="cb2-31" data-line-number="31">    }</a>
+<a class="sourceLine" id="cb2-32" data-line-number="32"></a>
+<a class="sourceLine" id="cb2-33" data-line-number="33">    <span class="kw">public</span> <span class="kw">sealed</span> <span class="kw">class</span> Mul : Expr {</a>
+<a class="sourceLine" id="cb2-34" data-line-number="34">        <span class="kw">public</span> Expr e1;</a>
+<a class="sourceLine" id="cb2-35" data-line-number="35">        <span class="kw">public</span> Expr e2;</a>
+<a class="sourceLine" id="cb2-36" data-line-number="36">        <span class="kw">public</span> <span class="kw">override</span> <span class="dt">int</span> <span class="fu">Eval</span>() =&gt; e1.<span class="fu">Eval</span>() * e2.<span class="fu">Eval</span>();</a>
+<a class="sourceLine" id="cb2-37" data-line-number="37">    }</a>
+<a class="sourceLine" id="cb2-38" data-line-number="38"></a>
+<a class="sourceLine" id="cb2-39" data-line-number="39">    <span class="kw">public</span> <span class="kw">sealed</span> <span class="kw">class</span> Div : Expr {</a>
+<a class="sourceLine" id="cb2-40" data-line-number="40">        <span class="kw">public</span> Expr e1;</a>
+<a class="sourceLine" id="cb2-41" data-line-number="41">        <span class="kw">public</span> Expr e2;</a>
+<a class="sourceLine" id="cb2-42" data-line-number="42">        <span class="kw">public</span> <span class="kw">override</span> <span class="dt">int</span> <span class="fu">Eval</span>() =&gt; e1.<span class="fu">Eval</span>() / e2.<span class="fu">Eval</span>();</a>
+<a class="sourceLine" id="cb2-43" data-line-number="43">    }</a>
+<a class="sourceLine" id="cb2-44" data-line-number="44">}</a>
+<a class="sourceLine" id="cb2-45" data-line-number="45"></a>
+<a class="sourceLine" id="cb2-46" data-line-number="46"><span class="co">// we can use our type like so:</span></a>
+<a class="sourceLine" id="cb2-47" data-line-number="47"><span class="kw">class</span> ExprDemo {</a>
+<a class="sourceLine" id="cb2-48" data-line-number="48">    <span class="kw">static</span> <span class="dt">void</span> <span class="fu">Main</span>()</a>
+<a class="sourceLine" id="cb2-49" data-line-number="49">    {</a>
+<a class="sourceLine" id="cb2-50" data-line-number="50">        <span class="dt">var</span> e = <span class="kw">new</span> Expr.<span class="fu">Add</span> {</a>
+<a class="sourceLine" id="cb2-51" data-line-number="51">            e1 = <span class="kw">new</span> Expr.<span class="fu">Literal</span> { val = <span class="dv">7</span> },</a>
+<a class="sourceLine" id="cb2-52" data-line-number="52">            e2 = <span class="kw">new</span> Expr.<span class="fu">Mul</span> {</a>
+<a class="sourceLine" id="cb2-53" data-line-number="53">                e1 = <span class="kw">new</span> Expr.<span class="fu">Literal</span> { val = <span class="dv">3</span> },</a>
+<a class="sourceLine" id="cb2-54" data-line-number="54">                e2 = <span class="kw">new</span> Expr.<span class="fu">Literal</span> { val = <span class="dv">5</span> }</a>
+<a class="sourceLine" id="cb2-55" data-line-number="55">            }</a>
+<a class="sourceLine" id="cb2-56" data-line-number="56">        };</a>
+<a class="sourceLine" id="cb2-57" data-line-number="57"></a>
+<a class="sourceLine" id="cb2-58" data-line-number="58">        <span class="co">// prints &quot;e.Eval() = 22&quot;</span></a>
+<a class="sourceLine" id="cb2-59" data-line-number="59">        System.<span class="fu">Console</span>.<span class="fu">WriteLine</span>(<span class="st">&quot;e.Eval() = {0}&quot;</span>, e.<span class="fu">Eval</span>());</a>
+<a class="sourceLine" id="cb2-60" data-line-number="60">    }</a>
+<a class="sourceLine" id="cb2-61" data-line-number="61">}</a></code></pre>
+<p>Suppose we extend our little “language” to include not just integer values and integer arithmetic, but an equality test (produing a boolean value) and a conditional (if-then-else) operation. Back to Haskell!</p>
+<pre class="sourceCode haskell" id="cb3"><code class="sourceCode haskell"><a class="sourceLine" id="cb3-1" data-line-number="1"><span class="kw">data</span> <span class="dt">Expr</span> <span class="fu">=</span></a>
+<a class="sourceLine" id="cb3-2" data-line-number="2">    <span class="dt">Literal</span> <span class="dt">Int</span></a>
+<a class="sourceLine" id="cb3-3" data-line-number="3">  <span class="fu">|</span> <span class="dt">Add</span> <span class="dt">Expr</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb3-4" data-line-number="4">  <span class="fu">|</span> <span class="dt">Sub</span> <span class="dt">Expr</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb3-5" data-line-number="5">  <span class="fu">|</span> <span class="dt">Mul</span> <span class="dt">Expr</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb3-6" data-line-number="6">  <span class="fu">|</span> <span class="dt">Div</span> <span class="dt">Expr</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb3-7" data-line-number="7">  <span class="fu">|</span> <span class="dt">Eql</span> <span class="dt">Expr</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb3-8" data-line-number="8">  <span class="fu">|</span> <span class="dt">IfThenElse</span> <span class="dt">Expr</span> <span class="dt">Expr</span> <span class="dt">Expr</span></a></code></pre>
+<p>The types for the interpreter aren’t entirely obvious; the <code>Eql</code> operation should compare two expressions which produce the same type (either an integer or a boolean) for equality, while the <code>IfThenElse</code> operation requires one expression which definitely evaluates to a boolean (the condition) and two others of matching type (the if-branch result and the else-branch result).</p>
+<p>One possibility is to do the check and produce either a meaningful result of appropriate type, or an error value. Like so:</p>
+<pre class="sourceCode haskell" id="cb4"><code class="sourceCode haskell"><a class="sourceLine" id="cb4-1" data-line-number="1"><span class="kw">data</span> <span class="dt">ExprResult</span> <span class="fu">=</span></a>
+<a class="sourceLine" id="cb4-2" data-line-number="2">    <span class="dt">IntResult</span> <span class="dt">Int</span></a>
+<a class="sourceLine" id="cb4-3" data-line-number="3">  <span class="fu">|</span> <span class="dt">BoolResult</span> <span class="dt">Bool</span></a>
+<a class="sourceLine" id="cb4-4" data-line-number="4">  <span class="kw">deriving</span> <span class="dt">Show</span></a>
+<a class="sourceLine" id="cb4-5" data-line-number="5"></a>
+<a class="sourceLine" id="cb4-6" data-line-number="6"><span class="kw">data</span> <span class="dt">ExprTy</span> <span class="fu">=</span> <span class="dt">IntTy</span> <span class="fu">|</span> <span class="dt">BoolTy</span> <span class="kw">deriving</span> <span class="dt">Show</span></a>
+<a class="sourceLine" id="cb4-7" data-line-number="7"><span class="kw">data</span> <span class="dt">TypeError</span> <span class="fu">=</span> <span class="dt">TypeError</span> {<span class="ot"> expected ::</span> <span class="dt">ExprTy</span> ,<span class="ot"> got ::</span> <span class="dt">ExprTy</span> }</a>
+<a class="sourceLine" id="cb4-8" data-line-number="8">  <span class="kw">deriving</span> <span class="dt">Show</span></a>
+<a class="sourceLine" id="cb4-9" data-line-number="9"></a>
+<a class="sourceLine" id="cb4-10" data-line-number="10"><span class="ot">eval ::</span> <span class="dt">Expr</span> <span class="ot">-&gt;</span> <span class="dt">Either</span> <span class="dt">TypeError</span> <span class="dt">ExprResult</span></a>
+<a class="sourceLine" id="cb4-11" data-line-number="11"></a>
+<a class="sourceLine" id="cb4-12" data-line-number="12">eval (<span class="dt">Literal</span> n) <span class="fu">=</span> <span class="dt">Right</span> (<span class="dt">IntResult</span> n)</a>
+<a class="sourceLine" id="cb4-13" data-line-number="13"></a>
+<a class="sourceLine" id="cb4-14" data-line-number="14">eval (<span class="dt">Add</span> e1 e2) <span class="fu">=</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb4-15" data-line-number="15">  x <span class="ot">&lt;-</span> eval e1</a>
+<a class="sourceLine" id="cb4-16" data-line-number="16">  y <span class="ot">&lt;-</span> eval e2</a>
+<a class="sourceLine" id="cb4-17" data-line-number="17">  <span class="kw">case</span> (x, y) <span class="kw">of</span></a>
+<a class="sourceLine" id="cb4-18" data-line-number="18">    (<span class="dt">IntResult</span> x, <span class="dt">IntResult</span> y) <span class="ot">-&gt;</span> <span class="dt">Right</span> <span class="fu">$</span> <span class="dt">IntResult</span> (x <span class="fu">+</span> y)</a>
+<a class="sourceLine" id="cb4-19" data-line-number="19">    (<span class="dt">BoolResult</span> _, _) <span class="ot">-&gt;</span> <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">IntTy</span> <span class="dt">BoolTy</span></a>
+<a class="sourceLine" id="cb4-20" data-line-number="20">    (_, <span class="dt">BoolResult</span> _) <span class="ot">-&gt;</span> <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">IntTy</span> <span class="dt">BoolTy</span></a>
+<a class="sourceLine" id="cb4-21" data-line-number="21"></a>
+<a class="sourceLine" id="cb4-22" data-line-number="22">eval (<span class="dt">Sub</span> e1 e2) <span class="fu">=</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb4-23" data-line-number="23">  x <span class="ot">&lt;-</span> eval e1</a>
+<a class="sourceLine" id="cb4-24" data-line-number="24">  y <span class="ot">&lt;-</span> eval e2</a>
+<a class="sourceLine" id="cb4-25" data-line-number="25">  <span class="kw">case</span> (x, y) <span class="kw">of</span></a>
+<a class="sourceLine" id="cb4-26" data-line-number="26">    (<span class="dt">IntResult</span> x, <span class="dt">IntResult</span> y) <span class="ot">-&gt;</span> <span class="dt">Right</span> <span class="fu">$</span> <span class="dt">IntResult</span> (x <span class="fu">-</span> y)</a>
+<a class="sourceLine" id="cb4-27" data-line-number="27">    (<span class="dt">BoolResult</span> _, _) <span class="ot">-&gt;</span> <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">IntTy</span> <span class="dt">BoolTy</span></a>
+<a class="sourceLine" id="cb4-28" data-line-number="28">    (_, <span class="dt">BoolResult</span> _) <span class="ot">-&gt;</span> <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">IntTy</span> <span class="dt">BoolTy</span></a>
+<a class="sourceLine" id="cb4-29" data-line-number="29"></a>
+<a class="sourceLine" id="cb4-30" data-line-number="30">eval (<span class="dt">Mul</span> e1 e2) <span class="fu">=</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb4-31" data-line-number="31">  x <span class="ot">&lt;-</span> eval e1</a>
+<a class="sourceLine" id="cb4-32" data-line-number="32">  y <span class="ot">&lt;-</span> eval e2</a>
+<a class="sourceLine" id="cb4-33" data-line-number="33">  <span class="kw">case</span> (x, y) <span class="kw">of</span></a>
+<a class="sourceLine" id="cb4-34" data-line-number="34">    (<span class="dt">IntResult</span> x, <span class="dt">IntResult</span> y) <span class="ot">-&gt;</span> <span class="dt">Right</span> <span class="fu">$</span> <span class="dt">IntResult</span> (x <span class="fu">*</span> y)</a>
+<a class="sourceLine" id="cb4-35" data-line-number="35">    (<span class="dt">BoolResult</span> _, _) <span class="ot">-&gt;</span> <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">IntTy</span> <span class="dt">BoolTy</span></a>
+<a class="sourceLine" id="cb4-36" data-line-number="36">    (_, <span class="dt">BoolResult</span> _) <span class="ot">-&gt;</span> <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">IntTy</span> <span class="dt">BoolTy</span></a>
+<a class="sourceLine" id="cb4-37" data-line-number="37"></a>
+<a class="sourceLine" id="cb4-38" data-line-number="38">eval (<span class="dt">Div</span> e1 e2) <span class="fu">=</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb4-39" data-line-number="39">  x <span class="ot">&lt;-</span> eval e1</a>
+<a class="sourceLine" id="cb4-40" data-line-number="40">  y <span class="ot">&lt;-</span> eval e2</a>
+<a class="sourceLine" id="cb4-41" data-line-number="41">  <span class="kw">case</span> (x, y) <span class="kw">of</span></a>
+<a class="sourceLine" id="cb4-42" data-line-number="42">    (<span class="dt">IntResult</span> x, <span class="dt">IntResult</span> y) <span class="ot">-&gt;</span> <span class="dt">Right</span> <span class="fu">$</span> <span class="dt">IntResult</span> (x <span class="ot">`div`</span> y)</a>
+<a class="sourceLine" id="cb4-43" data-line-number="43">    (<span class="dt">BoolResult</span> _, _) <span class="ot">-&gt;</span> <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">IntTy</span> <span class="dt">BoolTy</span></a>
+<a class="sourceLine" id="cb4-44" data-line-number="44">    (_, <span class="dt">BoolResult</span> _) <span class="ot">-&gt;</span> <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">IntTy</span> <span class="dt">BoolTy</span></a>
+<a class="sourceLine" id="cb4-45" data-line-number="45"></a>
+<a class="sourceLine" id="cb4-46" data-line-number="46">eval (<span class="dt">Eql</span> e1 e2) <span class="fu">=</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb4-47" data-line-number="47">  x <span class="ot">&lt;-</span> eval e1</a>
+<a class="sourceLine" id="cb4-48" data-line-number="48">  y <span class="ot">&lt;-</span> eval e2</a>
+<a class="sourceLine" id="cb4-49" data-line-number="49">  <span class="kw">case</span> (x, y) <span class="kw">of</span></a>
+<a class="sourceLine" id="cb4-50" data-line-number="50">    (<span class="dt">IntResult</span> x, <span class="dt">IntResult</span> y) <span class="ot">-&gt;</span> <span class="dt">Right</span> <span class="fu">$</span> <span class="dt">BoolResult</span> (x <span class="fu">==</span> y)</a>
+<a class="sourceLine" id="cb4-51" data-line-number="51">    (<span class="dt">BoolResult</span> x, <span class="dt">BoolResult</span> y) <span class="ot">-&gt;</span> <span class="dt">Right</span> <span class="fu">$</span> <span class="dt">BoolResult</span> (x <span class="fu">==</span> y)</a>
+<a class="sourceLine" id="cb4-52" data-line-number="52">    (<span class="dt">IntResult</span> _, _) <span class="ot">-&gt;</span> <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">IntTy</span> <span class="dt">BoolTy</span></a>
+<a class="sourceLine" id="cb4-53" data-line-number="53">    (<span class="dt">BoolResult</span> _, _) <span class="ot">-&gt;</span> <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">BoolTy</span> <span class="dt">IntTy</span> </a>
+<a class="sourceLine" id="cb4-54" data-line-number="54"></a>
+<a class="sourceLine" id="cb4-55" data-line-number="55">eval (<span class="dt">IfThenElse</span> cond eIf eElse) <span class="fu">=</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb4-56" data-line-number="56">  c <span class="ot">&lt;-</span> eval cond</a>
+<a class="sourceLine" id="cb4-57" data-line-number="57">  x <span class="ot">&lt;-</span> eval eIf</a>
+<a class="sourceLine" id="cb4-58" data-line-number="58">  y <span class="ot">&lt;-</span> eval eElse</a>
+<a class="sourceLine" id="cb4-59" data-line-number="59">  <span class="kw">case</span> (c, x, y) <span class="kw">of</span></a>
+<a class="sourceLine" id="cb4-60" data-line-number="60">    (<span class="dt">BoolResult</span> c, <span class="dt">IntResult</span> x, <span class="dt">IntResult</span> y) <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb4-61" data-line-number="61">      <span class="dt">Right</span> <span class="fu">$</span> <span class="dt">IntResult</span> <span class="fu">$</span> <span class="kw">if</span> c <span class="kw">then</span> x <span class="kw">else</span> y</a>
+<a class="sourceLine" id="cb4-62" data-line-number="62">    (<span class="dt">BoolResult</span> c, <span class="dt">BoolResult</span> x, <span class="dt">BoolResult</span> y) <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb4-63" data-line-number="63">      <span class="dt">Right</span> <span class="fu">$</span> <span class="dt">BoolResult</span> <span class="fu">$</span> <span class="kw">if</span> c <span class="kw">then</span> x <span class="kw">else</span> y</a>
+<a class="sourceLine" id="cb4-64" data-line-number="64">    (<span class="dt">IntResult</span> _, _, _) <span class="ot">-&gt;</span> </a>
+<a class="sourceLine" id="cb4-65" data-line-number="65">      <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">BoolTy</span> <span class="dt">IntTy</span></a>
+<a class="sourceLine" id="cb4-66" data-line-number="66">    (_, <span class="dt">IntResult</span> _, <span class="dt">BoolResult</span> _) <span class="ot">-&gt;</span> </a>
+<a class="sourceLine" id="cb4-67" data-line-number="67">      <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">IntTy</span> <span class="dt">BoolTy</span></a>
+<a class="sourceLine" id="cb4-68" data-line-number="68">    (_, <span class="dt">BoolResult</span> _, <span class="dt">IntResult</span> _) <span class="ot">-&gt;</span> </a>
+<a class="sourceLine" id="cb4-69" data-line-number="69">      <span class="dt">Left</span> <span class="fu">$</span> <span class="dt">TypeError</span> <span class="dt">BoolTy</span> <span class="dt">IntTy</span></a></code></pre>
+<p>We can then evaluate both valid and invalid expressions, and verify that the “typechecker” does its job:</p>
+<pre class="sourceCode haskell" id="cb5"><code class="sourceCode haskell"><a class="sourceLine" id="cb5-1" data-line-number="1">eval <span class="fu">$</span> <span class="dt">IfThenElse</span> (<span class="dt">Eql</span> (<span class="dt">Mul</span> (<span class="dt">Literal</span> <span class="dv">3</span>) (<span class="dt">Literal</span> <span class="dv">7</span>)) (<span class="dt">Literal</span> <span class="dv">21</span>))</a>
+<a class="sourceLine" id="cb5-2" data-line-number="2">                  (<span class="dt">Literal</span> <span class="dv">1</span>)</a>
+<a class="sourceLine" id="cb5-3" data-line-number="3">                  (<span class="dt">Literal</span> <span class="dv">0</span>)</a>
+<a class="sourceLine" id="cb5-4" data-line-number="4"><span class="ot">=&gt;</span> <span class="dt">Right</span> (<span class="dt">IntResult</span> <span class="dv">1</span>)</a>
+<a class="sourceLine" id="cb5-5" data-line-number="5"></a>
+<a class="sourceLine" id="cb5-6" data-line-number="6">eval <span class="fu">$</span> <span class="dt">IfThenElse</span> (<span class="dt">Eql</span> (<span class="dt">Mul</span> (<span class="dt">Literal</span> <span class="dv">3</span>) (<span class="dt">Literal</span> <span class="dv">7</span>)) (<span class="dt">Literal</span> <span class="dv">21</span>))</a>
+<a class="sourceLine" id="cb5-7" data-line-number="7">                  (<span class="dt">Eql</span> (<span class="dt">Literal</span> <span class="dv">1</span>) (<span class="dt">Literal</span> <span class="dv">1</span>))</a>
+<a class="sourceLine" id="cb5-8" data-line-number="8">                  (<span class="dt">Literal</span> <span class="dv">0</span>)</a>
+<a class="sourceLine" id="cb5-9" data-line-number="9"><span class="ot">=&gt;</span> <span class="dt">Left</span> (<span class="dt">TypeError</span> {expected <span class="fu">=</span> <span class="dt">BoolTy</span>, got <span class="fu">=</span> <span class="dt">IntTy</span>})</a></code></pre>
+<p>Don’t worry, the point isn’t to go into Haskell’s monadic error handling or <code>do</code> syntax. Let’s just observe that our evaluator does work, correctly resolving an integer result from the first conditional, and pointing out that the second conditional provides an “if” branch of yielding a boolean but an “else” branch yielding an integer (that’s the <code>Left (TypeError ..)</code>).</p>
+<p>However, it was extraordinarily tedious: we had to write out each possible combination of valid and invalid subexpressions for each evaluation rule. What if we could instead ensure that <em>only</em> valid expressions could be constructed?</p>
+<p>It turns out that we can, using an extension to ADTs known as <em>generalized algebraic data types</em>, or GADTs. GADTs give us the ability to <em>refine</em> the types of our values in each constructor: this permits us to enforce our type safety rules directly in the host language (Haskell) type system, and forbid invalid expressions from even being constructed.</p>
+<p>As a consequence, our evaluator is back to almost its original simplicity! It no longer has to worry about detecting type errors. Observe:</p>
+<pre class="sourceCode haskell" id="cb6"><code class="sourceCode haskell"><a class="sourceLine" id="cb6-1" data-line-number="1"><span class="ot">{-# LANGUAGE GADTs #-}</span></a>
+<a class="sourceLine" id="cb6-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb6-3" data-line-number="3"><span class="kw">data</span> <span class="dt">Expr</span> a <span class="kw">where</span></a>
+<a class="sourceLine" id="cb6-4" data-line-number="4">  <span class="dt">Literal</span><span class="ot"> ::</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="dt">Int</span></a>
+<a class="sourceLine" id="cb6-5" data-line-number="5">  <span class="dt">Add</span><span class="ot"> ::</span> <span class="dt">Expr</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="dt">Int</span></a>
+<a class="sourceLine" id="cb6-6" data-line-number="6">  <span class="dt">Sub</span><span class="ot"> ::</span> <span class="dt">Expr</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="dt">Int</span></a>
+<a class="sourceLine" id="cb6-7" data-line-number="7">  <span class="dt">Mul</span><span class="ot"> ::</span> <span class="dt">Expr</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="dt">Int</span></a>
+<a class="sourceLine" id="cb6-8" data-line-number="8">  <span class="dt">Div</span><span class="ot"> ::</span> <span class="dt">Expr</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="dt">Int</span></a>
+<a class="sourceLine" id="cb6-9" data-line-number="9">  <span class="dt">Eql</span><span class="ot"> ::</span> <span class="dt">Eq</span> a <span class="ot">=&gt;</span> <span class="dt">Expr</span> a <span class="ot">-&gt;</span> <span class="dt">Expr</span> a <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="dt">Bool</span></a>
+<a class="sourceLine" id="cb6-10" data-line-number="10">  <span class="dt">IfThenElse</span><span class="ot"> ::</span> <span class="dt">Expr</span> <span class="dt">Bool</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> a <span class="ot">-&gt;</span> <span class="dt">Expr</span> a <span class="ot">-&gt;</span> <span class="dt">Expr</span> a</a>
+<a class="sourceLine" id="cb6-11" data-line-number="11"></a>
+<a class="sourceLine" id="cb6-12" data-line-number="12"><span class="ot">eval ::</span> <span class="dt">Expr</span> a <span class="ot">-&gt;</span> a</a>
+<a class="sourceLine" id="cb6-13" data-line-number="13">eval (<span class="dt">Literal</span> n) <span class="fu">=</span> n</a>
+<a class="sourceLine" id="cb6-14" data-line-number="14">eval (<span class="dt">Add</span> e1 e2) <span class="fu">=</span> eval e1 <span class="fu">+</span> eval e2</a>
+<a class="sourceLine" id="cb6-15" data-line-number="15">eval (<span class="dt">Sub</span> e1 e2) <span class="fu">=</span> eval e1 <span class="fu">-</span> eval e2</a>
+<a class="sourceLine" id="cb6-16" data-line-number="16">eval (<span class="dt">Mul</span> e1 e2) <span class="fu">=</span> eval e1 <span class="fu">*</span> eval e2</a>
+<a class="sourceLine" id="cb6-17" data-line-number="17">eval (<span class="dt">Div</span> e1 e2) <span class="fu">=</span> eval e1 <span class="ot">`div`</span> eval e2</a>
+<a class="sourceLine" id="cb6-18" data-line-number="18">eval (<span class="dt">Eql</span> e1 e2) <span class="fu">=</span> eval e1 <span class="fu">==</span> eval e2</a>
+<a class="sourceLine" id="cb6-19" data-line-number="19">eval (<span class="dt">IfThenElse</span> cond eIf eElse) <span class="fu">=</span> <span class="kw">if</span> eval cond <span class="kw">then</span> eval eIf <span class="kw">else</span> eval eElse</a></code></pre>
+<p>We can still construct and evaluate valid expressions, but when we try to construct our “bad example”:</p>
+<pre class="sourceCode haskell" id="cb7"><code class="sourceCode haskell"><a class="sourceLine" id="cb7-1" data-line-number="1"><span class="kw">let</span> badEx <span class="fu">=</span> <span class="dt">IfThenElse</span> (<span class="dt">Eql</span> (<span class="dt">Mul</span> (<span class="dt">Literal</span> <span class="dv">3</span>) (<span class="dt">Literal</span> <span class="dv">7</span>)) (<span class="dt">Literal</span> <span class="dv">21</span>))</a>
+<a class="sourceLine" id="cb7-2" data-line-number="2">                       (<span class="dt">Eql</span> (<span class="dt">Literal</span> <span class="dv">1</span>) (<span class="dt">Literal</span> <span class="dv">1</span>))</a>
+<a class="sourceLine" id="cb7-3" data-line-number="3">                       (<span class="dt">Literal</span> <span class="dv">0</span>)</a>
+<a class="sourceLine" id="cb7-4" data-line-number="4"></a>
+<a class="sourceLine" id="cb7-5" data-line-number="5"><span class="ot">=&gt;</span></a>
+<a class="sourceLine" id="cb7-6" data-line-number="6"></a>
+<a class="sourceLine" id="cb7-7" data-line-number="7">error<span class="fu">:</span></a>
+<a class="sourceLine" id="cb7-8" data-line-number="8">  <span class="fu">*</span> <span class="dt">Couldn&#39;t</span> match <span class="kw">type</span> <span class="ot">`Int&#39; with `</span><span class="dt">Bool&#39;</span></a>
+<a class="sourceLine" id="cb7-9" data-line-number="9">    <span class="dt">Expected</span> <span class="kw">type</span><span class="fu">:</span> <span class="dt">Expr</span> <span class="dt">Bool</span></a>
+<a class="sourceLine" id="cb7-10" data-line-number="10">      <span class="dt">Actual</span> <span class="kw">type</span><span class="fu">:</span> <span class="dt">Expr</span> <span class="dt">Int</span></a>
+<a class="sourceLine" id="cb7-11" data-line-number="11">  <span class="fu">*</span> <span class="dt">In</span> the third argument <span class="kw">of</span> <span class="ot">`IfThenElse&#39;, namely `</span>(<span class="dt">Literal</span> <span class="dv">0</span>)<span class="ch">&#39;</span></a></code></pre>
+<p>This is really pretty fantastic! We’ve been able to express our typing rules very directly, have them enforced by our host language, and keep the evaluator simple.</p>
+<p>Can we get this kind of power in our object-oriented languages? Today’s paper of the day provides an answer: yes, with some caveats, if you have generics (that is, parametric polymorphism of the kind provided by C# or Java).</p>
+<p>Kennedy and Russo show a translation for GADTs and many GADT-manipulating programs into the type system of C#. Along the way they encounter some rough spots which require the introduction of uncheckable type casts, and suggest some language improvements. C# programmers may notice that the <code>switch</code> enhancement they suggest is similar to the type-based <code>switch</code> that was introduced to the language recently; however, the version suggested by Kennedy and Russo is strictly more powerful, as their <code>switch</code> makes use of the type-refinement provided by GADTs to let the compiler “know more” about the relevant types in each arm of the switch.</p>
+<p>At the end, they provide typing judgments and evaluation rules for their proposed language extensions; this part gets a bit formal, and given the language evolution since 2015 it’s more of a glimpse into a future that might have been. Nonetheless, I’d encourage any object-oriented programmers (by choice or circumstance) with an interest in more “typeful” data modeling to check out the paper.</p>
+<p>We’ll try to keep tomorrow’s paper a little lighter and the write-up a little briefer! This one took a bit of justification, as ADTs and GADTs are quite unfamiliar outside of functional programming circles.</p>
 
         <!--#include virtual="/include/after.html" -->
     </body>
