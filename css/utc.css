@@ -113,6 +113,7 @@ a.sourceLine {
 
 code.sourceCode {
     font-family: 'Lucida Console', 'Consolas', 'Courier New', monospace;
+    color: white; /* make code stand out from text */
     white-space: pre;
 }
 

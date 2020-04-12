@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <!--#set var="title" value="POTD: Functional Programming: More Fundamental than BASIC?" -->
+        <!--#include file="/include/head.html" -->
+    </head>
+    <body>
+        <!--#include file="/include/before.html" -->
+        <h2 class="title">Paper of the Day: “Functional Programming: More Fundamental than BASIC?”
+        <br>by Iain Ferguson
+        </h2>
+        <h3 class="date">2017-12-05</h3>
+
+<p>Today’s <a href="https://3e8.org/pub/scheme/doc/lisp-pointers/v6i2/p43-ferguson.pdf">POTD</a> continues our theme of <a href="https://csedweek.org/">Computer Science Education Week</a>. Yesterday we saw a paper (and retraction), and meditated on the topic of why it’s so hard to teach programming.</p>
+<p>What if part of the reason is that the way computer science topics are typically presented just isn’t that interesting to students?</p>
+<blockquote>
+<p>The current secondary school computer science curriculum, which culminates in the AP exam, provides students with a misleading picture of the discipline, and many young thinkers are turned off by the rigidity and pettiness of syntax-heavy languages like BASIC and Pascal.</p>
+</blockquote>
+<p>Today’s paper of the day relates an approach taken by educators at a mathematics enrichment program for gifted students during the mid-1980s. Their premise was simple: the machine-oriented paradigm and heavyweight syntax used by then-common teaching languages obscured the parts of computer science that should actually appeal to talented mathematics students.</p>
+<p>They designed a curriculum around <em>functional programming</em> in the Scheme programming language, a dialect of Lisp developed by researchers at MIT to explore topics in programming language design. Scheme is known for its minimalist syntax and focus on pure functions and recursion over side effects, mutable state, and iteration; it was used for many years as the teaching language for MIT’s famous “6.001” introductory computer science course and has inspired many successors.</p>
+<p>In fact the course began with a pencil-and-paper notation for functions, including recursive functions, on data (and a “box” notation for defining new functions); students learned to manipulate these abstract, mathematical descriptions before learning how to translate them into Scheme to be run on a “real computer”.</p>
+<blockquote>
+<p>In May of 1991 we gave the Part B, Section II (programming) paper of the College Board Advanced Placement exam to our ninth grade students, without warning or preparation, and asked them to complete the test, writing their answers in Scheme. The students found the test to be easy, in some cases trivial, and most of the students had finished 15 minutes before the 45 minutes allowed. At the time of taking this test, the students had received less than forty hours of instruction in computer science, compared to the three hundred or more hours that most students who take the AP test must endure.</p>
+</blockquote>
+<p>That’s a pretty strong result! Now, it’d be more compelling if we saw actual scores, and there’s a bit of impedence mismatch between Scheme and Pascal (the language the AP exam covered at the time).</p>
+<p>But if we take the result as face value, it’s fairly compelling evidence that a “functional first” approach to teaching programming can be successful. Most modern high school and university CS1 courses are taught in Java; a lucky few in Python; and a scattering of others.</p>
+<p>From BASIC:</p>
+<pre><code>10 PRINT &quot;HELLO WORLD&quot;</code></pre>
+<p>To Java:</p>
+<pre><code>class HelloWorld {
+    public static void main(String args[])
+    {
+        System.out.println(&quot;hello world&quot;);
+    }
+}</code></pre>
+<p>Are we moving <em>away</em> from “rigidity and pettiness”?</p>
+<p>More meditations on programming languages and education: tomorrow on Paper of the Day!</p>
+
+        <!--#include file="/include/after.html" -->
+    </body>
+</html>
