@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <!--#set var="title" value="POTD: The camel has two humps (and retraction)" -->
+        <!--#include file="/include/head.html" -->
+    </head>
+    <body>
+        <!--#include file="/include/before.html" -->
+        <h2 class="title">Paper of the Day: “The camel has two humps” and “Camels and humps: a retraction”
+        <br>by Saeed Dehnadi and Richard Bornat
+        </h2>
+        <h3 class="date">2017-12-04</h3>
+
+<p>This week is <a href="https://csedweek.org/">Computer Science Education Week</a>! It’s an initiative I watch each year with a mix of admiration and dread; I’m dead convinced that our society needs to expose more students to computer science, not fewer; that programming is getting more accessible and relevant, not less; that the only way to build diversity of experience and perspective downstream in industry and academia is to construct education programs that appeal to diverse populations upstream.</p>
+<p>That said, I’m not sure that Barack Obama or a movie star spending an hour writing a Javascript “hello world” program and getting an “I learned code” sticker does much to move that needle. There’s a fundamental tension: we want computer science to be accessible, but it is fundamentally hard: hard like algebra is hard. Everyone takes algebra, and as a society we see the value in teaching every student the power of abstracting from concrete arithmetic to symbolic manipulation. But we don’t, generally, construct flashy multimedia initiatives to get kids to write “y = x + 2” on a sticky note and pretend that’s all there is to it.</p>
+<p>Some programmers and educators shrug at the whole idea and submit that perhaps some students just can’t learn to program. Today’s <a href="http://www.eis.mdx.ac.uk/research/PhDArea/saeed/paper1.pdf">POTD</a> is perhaps the most famous study in this vein. The premise was this: the researchers had found a simple pre-test that reliably predicted whether a student would succeed in their introductory programming class.</p>
+<p>The test consisted of questions that looked like this:</p>
+<pre class="sourceCode c" id="cb1"><code class="sourceCode c"><a class="sourceLine" id="cb1-1" data-line-number="1"><span class="co">// After this short program snippet, what are the new values of `a` and `b`?</span></a>
+<a class="sourceLine" id="cb1-2" data-line-number="2"><span class="dt">int</span> a = <span class="dv">10</span>;</a>
+<a class="sourceLine" id="cb1-3" data-line-number="3"><span class="dt">int</span> b = <span class="dv">20</span>;</a>
+<a class="sourceLine" id="cb1-4" data-line-number="4"></a>
+<a class="sourceLine" id="cb1-5" data-line-number="5">a = b;</a>
+<a class="sourceLine" id="cb1-6" data-line-number="6"></a>
+<a class="sourceLine" id="cb1-7" data-line-number="7"><span class="co">/*</span></a>
+<a class="sourceLine" id="cb1-8" data-line-number="8"><span class="co"> *  1) a = 30 and b =  0</span></a>
+<a class="sourceLine" id="cb1-9" data-line-number="9"><span class="co"> *  2) a = 30 and b = 20</span></a>
+<a class="sourceLine" id="cb1-10" data-line-number="10"><span class="co"> *  3) a = 20 and b =  0</span></a>
+<a class="sourceLine" id="cb1-11" data-line-number="11"><span class="co"> *  4) a = 20 and b = 20</span></a>
+<a class="sourceLine" id="cb1-12" data-line-number="12"><span class="co"> *  5) a = 10 and b = 10</span></a>
+<a class="sourceLine" id="cb1-13" data-line-number="13"><span class="co"> *  6) a = 10 and b = 20</span></a>
+<a class="sourceLine" id="cb1-14" data-line-number="14"><span class="co"> *  7) a = 20 and b = 10</span></a>
+<a class="sourceLine" id="cb1-15" data-line-number="15"><span class="co"> */</span></a></code></pre>
+<p>The researchers found that students who had a <em>consistent</em> mental model (it didn’t have to match what Java actually did) were more likely to be successful in the course (although the histograms don’t tell quite as encouraging a story for the “consistent” group, nor quite as discouraging for the “inconsistent” group, as the paper implies).</p>
+<p>The paper’s interesting (and dripping with snark) and worth reading, but: it was retracted by one of the authors in 2014! The <a href="http://www.eis.mdx.ac.uk/staffpages/r_bornat/papers/camel_hump_retraction.pdf">retraction</a> is our bonus POTD for today, and worth reading on its own.</p>
+<blockquote>
+<p>Just to be clear: I do not believe that Dehnadi discovered an aptitude test for programming, as I claimed in 2006. Nor do I believe in programming sheep and non-programming goats.</p>
+</blockquote>
+<p>Here’s my opinion, in short: it’s not that easy. We don’t get to just write off half the population (of incoming computer science students, no less!) as “incapable of learning to program”.</p>
+<p>There’s no “programming gene”; I believe that if you can learn to solve an equation, or change a tire, you can learn the fundamentals of programming. Some people may learn the basics of “programming as a craft” and <em>choose</em> to stop there, able to solve small real-world problems. Others will be drawn further into the theory of computer science and <em>choose</em> to delve deeper. Others still won’t find any interest in the topic at all, and <em>choose</em> not to pursue it.</p>
+<p>So, all that said, why’s it still so darn hard to get students to <em>choose</em> to learn at least the basics? Is the topic just that uninteresting? My theory: yes, it is. At least the way we’ve chosen to teach it.</p>
+<p>More on that when I write about tomorrow’s Paper of the Day!</p>
+
+        <!--#include file="/include/after.html" -->
+    </body>
+</html>
