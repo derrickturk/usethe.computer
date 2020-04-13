@@ -2,13 +2,13 @@
 <html>
     <head>
         <!--#set var="title" value="bits and snippets" -->
-        <!--#include file="/include/bits.html" -->
+        <!--#include file="/include/head.html" -->
     </head>
     <body>
         <!--#include file="/include/before.html" -->
         <h2 class="title">selected bits and <a href="https://gist.github.com/derrickturk">gists</a></h2>
         <h3 class="comment">//
-            <!--#config timefmt="%Y" -->
+            <!--#config timefmt="%I" -->
             <!--#if expr="$date_local = 1" -->
             it's like dumpster diving, but for code
             <!--#elif expr="$date_local = 2" -->
@@ -42,6 +42,14 @@
             </div>
             <script src="https://gist.github.com/derrickturk/a844ba6fcf404c819f92151965abbca3.js"></script>
         </div>
+
+        <div class="linkcerpt">
+            <div class="linkcerpt-header">
+                <h3 class="title">parsing with multiple errors</h3>
+            </div>
+            <script src="https://gist.github.com/derrickturk/bdb2d10f648ebc08d583bbf0c5d3e7bd.js"></script>
+        </div>
+
         <!--#include file="/include/after.html" -->
     </body>
 </html>
