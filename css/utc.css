@@ -89,11 +89,23 @@ a:hover {
     font-size: small;
 }
 
-.linkcerpt-header {
+div.linkcerpt-header {
     display: flex;
     flex-flow: row;
     justify-content: space-between;
     align-items: center;
+    padding-bottom: 0;
+    margin-bottom: 0;
+}
+
+div.linkcerpt-header h3 {
+    padding-bottom: 0;
+    margin-bottom: 0;
+}
+
+div.linkcerpt-header h4 {
+    padding-bottom: 0;
+    margin-bottom: 0;
 }
 
 blockquote {
