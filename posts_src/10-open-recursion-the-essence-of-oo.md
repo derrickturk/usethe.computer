@@ -456,7 +456,7 @@ def fancy_doubler():
     return d
 
 fd = fancy_doubler()
-clr['call'](d)
+clr['call'](fd)
 ```
 > `10`  
 
