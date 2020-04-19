@@ -223,10 +223,82 @@ In our `beach_party` example, for instance, we could later define a new subclass
 Assuming our compiler hasn't changed the <a href="https://en.wikipedia.org/wiki/Application_binary_interface">ABI</a> out from under us (abstractions always leak, eventually), we can add objects of this new class (say, `SolarTruck`) to the vector we pass to `beach_party` and it'll do the right thing - even if we don't recompile `beach_party` (again, assuming the ABI has not changed).
 
 This is enabled by late binding - we don't need the compiler to be aware of every possible callee, just to know the "protocol" to call them dynamically.
+Of course, we can pull this off without inclusion/subtype polymorphism - we just need to ability to call a function via indirection; for example, by passing function pointers in C:
+```c
+#include <stdio.h>
 
-... is this the place for a digression about function pointers? to justify "that's still not that interesting", then bring in open recursion
+typedef void (*action_t)(int);
 
-... several thousand words in, time to introduce the thing we're talking about
+void do_it(action_t action)
+{
+    action(3);
+}
+
+void print_it(int x)
+{
+    printf("x is %d\n", x);
+}
+
+void print_twice_it(int x)
+{
+    printf("twice x is %d\n", x * 2);
+}
+
+int main(void)
+{
+    do_it(print_it);
+    do_it(print_twice_it);
+    return 0;
+}
+```
+
+However, subtyping grants us a surprising ability.
+Here's a somewhat contrived example in C++:
+```c++
+#include <iostream>
+
+struct Doubler {
+    void do_it(int x)
+    {
+        hook(x * 2);
+    }
+
+    virtual void hook(int x)
+    {
+        std::cout << x << '\n';
+    }
+};
+
+struct FancyDoubler : public Doubler {
+    // we "inherit" the definition of do_it from Doubler
+
+    virtual void hook(int x)
+    {
+        std::cout << ">>>>> " << x << " <<<<<\n";
+    }
+};
+
+struct Caller {
+    int val;
+
+    void call(Doubler &callee)
+    {
+        callee.do_it(val);
+    }
+};
+
+int main()
+{
+    Caller clr = Caller { 5 };
+    Doubler d;
+    FancyDoubler fd;
+
+    clr.call(d);
+    clr.call(fd);
+}
+```
+
+We can write code in a superclass which calls code in a subclass - even if the subclass is written (and compiled) much later.
 
 ## When I Think About You, I Touch My `self`
 

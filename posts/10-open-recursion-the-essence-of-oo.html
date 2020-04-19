@@ -176,9 +176,75 @@
 <h3 class="title">Call <code>Me</code>, Maybe</h3>
 <p>It’s commonplace for new code to call old code. We’ve taken it for granted for many years, since the first “subroutine library”, that we can build up programs one piece at a time, re-using the work we’ve already done when possible.</p>
 <p>A more novel trick is for old code to call new code! In our <code>beach_party</code> example, for instance, we could later define a new subclass of Truck with different definitions of our required functions. Assuming our compiler hasn’t changed the <a href="https://en.wikipedia.org/wiki/Application_binary_interface">ABI</a> out from under us (abstractions always leak, eventually), we can add objects of this new class (say, <code>SolarTruck</code>) to the vector we pass to <code>beach_party</code> and it’ll do the right thing - even if we don’t recompile <code>beach_party</code> (again, assuming the ABI has not changed).</p>
-<p>This is enabled by late binding - we don’t need the compiler to be aware of every possible callee, just to know the “protocol” to call them dynamically.</p>
-<p>… is this the place for a digression about function pointers? to justify “that’s still not that interesting”, then bring in open recursion</p>
-<p>… several thousand words in, time to introduce the thing we’re talking about</p>
+<p>This is enabled by late binding - we don’t need the compiler to be aware of every possible callee, just to know the “protocol” to call them dynamically. Of course, we can pull this off without inclusion/subtype polymorphism - we just need to ability to call a function via indirection; for example, by passing function pointers in C:</p>
+<pre class="sourceCode c" id="cb4"><code class="sourceCode c"><a class="sourceLine" id="cb4-1" data-line-number="1"><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></a>
+<a class="sourceLine" id="cb4-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb4-3" data-line-number="3"><span class="kw">typedef</span> <span class="dt">void</span> (*action_t)(<span class="dt">int</span>);</a>
+<a class="sourceLine" id="cb4-4" data-line-number="4"></a>
+<a class="sourceLine" id="cb4-5" data-line-number="5"><span class="dt">void</span> do_it(action_t action)</a>
+<a class="sourceLine" id="cb4-6" data-line-number="6">{</a>
+<a class="sourceLine" id="cb4-7" data-line-number="7">    action(<span class="dv">3</span>);</a>
+<a class="sourceLine" id="cb4-8" data-line-number="8">}</a>
+<a class="sourceLine" id="cb4-9" data-line-number="9"></a>
+<a class="sourceLine" id="cb4-10" data-line-number="10"><span class="dt">void</span> print_it(<span class="dt">int</span> x)</a>
+<a class="sourceLine" id="cb4-11" data-line-number="11">{</a>
+<a class="sourceLine" id="cb4-12" data-line-number="12">    printf(<span class="st">&quot;x is %d</span><span class="sc">\n</span><span class="st">&quot;</span>, x);</a>
+<a class="sourceLine" id="cb4-13" data-line-number="13">}</a>
+<a class="sourceLine" id="cb4-14" data-line-number="14"></a>
+<a class="sourceLine" id="cb4-15" data-line-number="15"><span class="dt">void</span> print_twice_it(<span class="dt">int</span> x)</a>
+<a class="sourceLine" id="cb4-16" data-line-number="16">{</a>
+<a class="sourceLine" id="cb4-17" data-line-number="17">    printf(<span class="st">&quot;twice x is %d</span><span class="sc">\n</span><span class="st">&quot;</span>, x * <span class="dv">2</span>);</a>
+<a class="sourceLine" id="cb4-18" data-line-number="18">}</a>
+<a class="sourceLine" id="cb4-19" data-line-number="19"></a>
+<a class="sourceLine" id="cb4-20" data-line-number="20"><span class="dt">int</span> main(<span class="dt">void</span>)</a>
+<a class="sourceLine" id="cb4-21" data-line-number="21">{</a>
+<a class="sourceLine" id="cb4-22" data-line-number="22">    do_it(print_it);</a>
+<a class="sourceLine" id="cb4-23" data-line-number="23">    do_it(print_twice_it);</a>
+<a class="sourceLine" id="cb4-24" data-line-number="24">    <span class="cf">return</span> <span class="dv">0</span>;</a>
+<a class="sourceLine" id="cb4-25" data-line-number="25">}</a></code></pre>
+<p>However, subtyping grants us a surprising ability. Here’s a somewhat contrived example in C++:</p>
+<pre class="sourceCode cpp" id="cb5"><code class="sourceCode cpp"><a class="sourceLine" id="cb5-1" data-line-number="1"><span class="pp">#include </span><span class="im">&lt;iostream&gt;</span></a>
+<a class="sourceLine" id="cb5-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb5-3" data-line-number="3"><span class="kw">struct</span> Doubler {</a>
+<a class="sourceLine" id="cb5-4" data-line-number="4">    <span class="dt">void</span> do_it(<span class="dt">int</span> x)</a>
+<a class="sourceLine" id="cb5-5" data-line-number="5">    {</a>
+<a class="sourceLine" id="cb5-6" data-line-number="6">        hook(x * <span class="dv">2</span>);</a>
+<a class="sourceLine" id="cb5-7" data-line-number="7">    }</a>
+<a class="sourceLine" id="cb5-8" data-line-number="8"></a>
+<a class="sourceLine" id="cb5-9" data-line-number="9">    <span class="kw">virtual</span> <span class="dt">void</span> hook(<span class="dt">int</span> x)</a>
+<a class="sourceLine" id="cb5-10" data-line-number="10">    {</a>
+<a class="sourceLine" id="cb5-11" data-line-number="11">        <span class="bu">std::</span>cout &lt;&lt; x &lt;&lt; <span class="ch">&#39;</span><span class="sc">\n</span><span class="ch">&#39;</span>;</a>
+<a class="sourceLine" id="cb5-12" data-line-number="12">    }</a>
+<a class="sourceLine" id="cb5-13" data-line-number="13">};</a>
+<a class="sourceLine" id="cb5-14" data-line-number="14"></a>
+<a class="sourceLine" id="cb5-15" data-line-number="15"><span class="kw">struct</span> FancyDoubler : <span class="kw">public</span> Doubler {</a>
+<a class="sourceLine" id="cb5-16" data-line-number="16">    <span class="co">// we &quot;inherit&quot; the definition of do_it from Doubler</span></a>
+<a class="sourceLine" id="cb5-17" data-line-number="17"></a>
+<a class="sourceLine" id="cb5-18" data-line-number="18">    <span class="kw">virtual</span> <span class="dt">void</span> hook(<span class="dt">int</span> x)</a>
+<a class="sourceLine" id="cb5-19" data-line-number="19">    {</a>
+<a class="sourceLine" id="cb5-20" data-line-number="20">        <span class="bu">std::</span>cout &lt;&lt; <span class="st">&quot;&gt;&gt;&gt;&gt;&gt; &quot;</span> &lt;&lt; x &lt;&lt; <span class="st">&quot; &lt;&lt;&lt;&lt;&lt;</span><span class="sc">\n</span><span class="st">&quot;</span>;</a>
+<a class="sourceLine" id="cb5-21" data-line-number="21">    }</a>
+<a class="sourceLine" id="cb5-22" data-line-number="22">};</a>
+<a class="sourceLine" id="cb5-23" data-line-number="23"></a>
+<a class="sourceLine" id="cb5-24" data-line-number="24"><span class="kw">struct</span> Caller {</a>
+<a class="sourceLine" id="cb5-25" data-line-number="25">    <span class="dt">int</span> val;</a>
+<a class="sourceLine" id="cb5-26" data-line-number="26"></a>
+<a class="sourceLine" id="cb5-27" data-line-number="27">    <span class="dt">void</span> call(Doubler &amp;callee)</a>
+<a class="sourceLine" id="cb5-28" data-line-number="28">    {</a>
+<a class="sourceLine" id="cb5-29" data-line-number="29">        callee.do_it(val);</a>
+<a class="sourceLine" id="cb5-30" data-line-number="30">    }</a>
+<a class="sourceLine" id="cb5-31" data-line-number="31">};</a>
+<a class="sourceLine" id="cb5-32" data-line-number="32"></a>
+<a class="sourceLine" id="cb5-33" data-line-number="33"><span class="dt">int</span> main()</a>
+<a class="sourceLine" id="cb5-34" data-line-number="34">{</a>
+<a class="sourceLine" id="cb5-35" data-line-number="35">    Caller clr = Caller { <span class="dv">5</span> };</a>
+<a class="sourceLine" id="cb5-36" data-line-number="36">    Doubler d;</a>
+<a class="sourceLine" id="cb5-37" data-line-number="37">    FancyDoubler fd;</a>
+<a class="sourceLine" id="cb5-38" data-line-number="38"></a>
+<a class="sourceLine" id="cb5-39" data-line-number="39">    clr.call(d);</a>
+<a class="sourceLine" id="cb5-40" data-line-number="40">    clr.call(fd);</a>
+<a class="sourceLine" id="cb5-41" data-line-number="41">}</a></code></pre>
+<p>We can write code in a superclass which calls code in a subclass - even if the subclass is written (and compiled) much later.</p>
 <h3 class="title">When I Think About You, I Touch My <code>self</code></h3>
 <p>… ok, time for Python</p>
 
