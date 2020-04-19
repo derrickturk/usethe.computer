@@ -6,7 +6,7 @@ We'll take a meandering path in today's post which will try to answer each of th
 We'll be using C++ and Python to explore these ideas, but I hope you'll make the attempt to follow along even if you've never used these languages.
 C++ was chosen because it makes some of the distinctions we need syntactically explicit; Python because it's more familiar to the average modern programmer, engineer, or data scientist - and because it'll give us a chance to build our own implementations of these concepts "from scratch" using just a simple subset of the language.
 
-## a bad idea which could only have originated in California
+## A Bad Idea Which Could Only Have Originated in California
 
 Many computer scientists and programmers have proposed definitions of object-oriented programming (henceforth "OO" or "OOP").
 It's a bit of a "blind men and the elephant" situation, but the majority of definitions seem to agree on a few crucial ideas.
@@ -107,11 +107,12 @@ A better design, using only interface inheritance, might look like this - we'll 
 ```c++
 // an "interface" for trucks - this is what C++ calls an "abstract class"
 class Truck {
+  public:
     // this is "C++ese" for an interface method with no default implementation
     virtual void go_camping() = 0;
 
     virtual void haul() = 0;
-}
+};
 
 class GasPoweredTruck: public Truck {
   public:
@@ -209,14 +210,24 @@ void beach_party(std::vector<Truck&> trucks)
 
 Each truck in the vector which we operate on may be of a different (sub)type - we can happily have a beach party with ordinary trucks and Cybertrucks, with each executing the appropriate definitions of `haul` and `go_camping`.
 
-We can do this because the call to each truck's relevant functions is *late bound*, *dynamically dispatched*, or *virtually dispatched* - these terms are (mostly) equivalent. The meaning is by contrast to *early dispatch*, where the compiler would choose the function to be called based on the statically-known type of the variable `t` (`Truck` - note this would end poorly with our example code, in a pure virtual call exception) rather than generate code to choose an implementation at runtime based on the "dynamic type" (`GasPoweredTruck` or `Cybertruck`) of each object.
+We can do this because the call to each truck's relevant functions is *late bound*, *dynamically dispatched*, or *virtually dispatched* - these terms are (mostly) equivalent. The meaning is by contrast to *early binding*, where the compiler would choose the function to be called based on the statically-known type of the variable `t` (`Truck` - note this would end poorly with our example code, in a pure virtual call exception) rather than generate code to choose an implementation at runtime based on the "dynamic type" (`GasPoweredTruck` or `Cybertruck`) of each object.
 
 There's another, even more interesting implication of the combination of late binding with inclusion polymorphism provides to us.
 
-## call me, maybe
+## Call `Me`, Maybe
 
 It's commonplace for new code to call old code. We've taken it for granted for many years, since the first "subroutine library", that we can build up programs one piece at a time, re-using the work we've already done when possible.
 
 A more novel trick is for old code to call new code!
+In our `beach_party` example, for instance, we could later define a new subclass of Truck with different definitions of our required functions.
+Assuming our compiler hasn't changed the <a href="https://en.wikipedia.org/wiki/Application_binary_interface">ABI</a> out from under us (abstractions always leak, eventually), we can add objects of this new class (say, `SolarTruck`) to the vector we pass to `beach_party` and it'll do the right thing - even if we don't recompile `beach_party` (again, assuming the ABI has not changed).
 
-## when I think about you, I touch my `self`
+This is enabled by late binding - we don't need the compiler to be aware of every possible callee, just to know the "protocol" to call them dynamically.
+
+... is this the place for a digression about function pointers? to justify "that's still not that interesting", then bring in open recursion
+
+... several thousand words in, time to introduce the thing we're talking about
+
+## When I Think About You, I Touch My `self`
+
+... ok, time for Python

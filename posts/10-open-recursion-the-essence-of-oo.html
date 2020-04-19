@@ -7,12 +7,13 @@
     <body>
         <!--#include file="/include/before.html" -->
 
-<h2 style="title">Open Recursion: the Essence of Object Oriented Programming?</h2>
-<h3 class="date">2020-04-xx</h3>
-<p style="color: firebrick;">DRAFT - this is a work in progress not ready for publication!
+        <h2 style="title">Open Recursion: the Essence of Object Oriented Programming?</h2>
+        <h3 class="date">2020-04-xx</h3>
+        <p style="color: firebrick;">DRAFT - this is a work in progress not ready for publication!
+
 <p>What is object-oriented programming really about? What’s so special about “late binding”? And why do I have to pass <code>self</code> around everywhere in Python? We’ll take a meandering path in today’s post which will try to answer each of these questions, and build our own miniature object system along the way.</p>
 <p>We’ll be using C++ and Python to explore these ideas, but I hope you’ll make the attempt to follow along even if you’ve never used these languages. C++ was chosen because it makes some of the distinctions we need syntactically explicit; Python because it’s more familiar to the average modern programmer, engineer, or data scientist - and because it’ll give us a chance to build our own implementations of these concepts “from scratch” using just a simple subset of the language.</p>
-<h3 class="title">a bad idea which could only have originated in California</h3>
+<h3 class="title">A Bad Idea Which Could Only Have Originated in California</h3>
 <p>Many computer scientists and programmers have proposed definitions of object-oriented programming (henceforth “OO” or “OOP”). It’s a bit of a “blind men and the elephant” situation, but the majority of definitions seem to agree on a few crucial ideas. Let’s consider a few.</p>
 <blockquote>
 <p>Object-oriented programming is an exceptionally bad idea which could only have originated in California.<br />
@@ -90,63 +91,64 @@
 <p>A better design, using only interface inheritance, might look like this - we’ll need some boilerplate to pull this off in C++:</p>
 <pre class="sourceCode cpp" id="cb2"><code class="sourceCode cpp"><a class="sourceLine" id="cb2-1" data-line-number="1"><span class="co">// an &quot;interface&quot; for trucks - this is what C++ calls an &quot;abstract class&quot;</span></a>
 <a class="sourceLine" id="cb2-2" data-line-number="2"><span class="kw">class</span> Truck {</a>
-<a class="sourceLine" id="cb2-3" data-line-number="3">    <span class="co">// this is &quot;C++ese&quot; for an interface method with no default implementation</span></a>
-<a class="sourceLine" id="cb2-4" data-line-number="4">    <span class="kw">virtual</span> <span class="dt">void</span> go_camping() = <span class="dv">0</span>;</a>
-<a class="sourceLine" id="cb2-5" data-line-number="5"></a>
-<a class="sourceLine" id="cb2-6" data-line-number="6">    <span class="kw">virtual</span> <span class="dt">void</span> haul() = <span class="dv">0</span>;</a>
-<a class="sourceLine" id="cb2-7" data-line-number="7">}</a>
-<a class="sourceLine" id="cb2-8" data-line-number="8"></a>
-<a class="sourceLine" id="cb2-9" data-line-number="9"><span class="kw">class</span> GasPoweredTruck: <span class="kw">public</span> Truck {</a>
-<a class="sourceLine" id="cb2-10" data-line-number="10">  <span class="kw">public</span>:</a>
-<a class="sourceLine" id="cb2-11" data-line-number="11">    ...</a>
-<a class="sourceLine" id="cb2-12" data-line-number="12"></a>
-<a class="sourceLine" id="cb2-13" data-line-number="13">    <span class="kw">virtual</span> <span class="dt">void</span> go_camping()</a>
-<a class="sourceLine" id="cb2-14" data-line-number="14">    {</a>
-<a class="sourceLine" id="cb2-15" data-line-number="15">        <span class="va">engine_</span>.start();</a>
-<a class="sourceLine" id="cb2-16" data-line-number="16">        ...</a>
-<a class="sourceLine" id="cb2-17" data-line-number="17">    }</a>
-<a class="sourceLine" id="cb2-18" data-line-number="18"></a>
-<a class="sourceLine" id="cb2-19" data-line-number="19">    <span class="kw">virtual</span> <span class="dt">void</span> haul(<span class="at">const</span> Cargo&amp; c)</a>
-<a class="sourceLine" id="cb2-20" data-line-number="20">    {</a>
-<a class="sourceLine" id="cb2-21" data-line-number="21">        <span class="va">engine_</span>.start();</a>
-<a class="sourceLine" id="cb2-22" data-line-number="22">        ...</a>
-<a class="sourceLine" id="cb2-23" data-line-number="23">    }</a>
-<a class="sourceLine" id="cb2-24" data-line-number="24"></a>
-<a class="sourceLine" id="cb2-25" data-line-number="25">    <span class="dt">double</span> fuel_remaining()</a>
-<a class="sourceLine" id="cb2-26" data-line-number="26">    {</a>
-<a class="sourceLine" id="cb2-27" data-line-number="27">        ...</a>
-<a class="sourceLine" id="cb2-28" data-line-number="28">    }</a>
-<a class="sourceLine" id="cb2-29" data-line-number="29"></a>
-<a class="sourceLine" id="cb2-30" data-line-number="30">    ...</a>
-<a class="sourceLine" id="cb2-31" data-line-number="31"></a>
-<a class="sourceLine" id="cb2-32" data-line-number="32">  <span class="kw">private</span>:</a>
-<a class="sourceLine" id="cb2-33" data-line-number="33">    InternalCombustionEngine <span class="va">engine_</span>;</a>
-<a class="sourceLine" id="cb2-34" data-line-number="34">    ...</a>
-<a class="sourceLine" id="cb2-35" data-line-number="35">};</a>
-<a class="sourceLine" id="cb2-36" data-line-number="36"></a>
-<a class="sourceLine" id="cb2-37" data-line-number="37"><span class="kw">class</span> TeslaCybertruck : <span class="kw">public</span> Truck {</a>
-<a class="sourceLine" id="cb2-38" data-line-number="38">  <span class="kw">public</span>:</a>
-<a class="sourceLine" id="cb2-39" data-line-number="39">    ...</a>
-<a class="sourceLine" id="cb2-40" data-line-number="40"></a>
-<a class="sourceLine" id="cb2-41" data-line-number="41">    <span class="kw">virtual</span> <span class="dt">void</span> go_camping()</a>
-<a class="sourceLine" id="cb2-42" data-line-number="42">    {</a>
-<a class="sourceLine" id="cb2-43" data-line-number="43">        <span class="va">battery_</span>.check_voltage();</a>
-<a class="sourceLine" id="cb2-44" data-line-number="44">        ...</a>
-<a class="sourceLine" id="cb2-45" data-line-number="45">    }</a>
-<a class="sourceLine" id="cb2-46" data-line-number="46"></a>
-<a class="sourceLine" id="cb2-47" data-line-number="47">    <span class="kw">virtual</span> <span class="dt">void</span> haul()</a>
-<a class="sourceLine" id="cb2-48" data-line-number="48">    {</a>
-<a class="sourceLine" id="cb2-49" data-line-number="49">        <span class="va">battery_</span>.check_voltage();</a>
-<a class="sourceLine" id="cb2-50" data-line-number="50">        ...</a>
-<a class="sourceLine" id="cb2-51" data-line-number="51">    }</a>
-<a class="sourceLine" id="cb2-52" data-line-number="52"></a>
-<a class="sourceLine" id="cb2-53" data-line-number="53">    ...</a>
-<a class="sourceLine" id="cb2-54" data-line-number="54"></a>
-<a class="sourceLine" id="cb2-55" data-line-number="55">  <span class="kw">private</span>:</a>
-<a class="sourceLine" id="cb2-56" data-line-number="56">    ElectricMotor <span class="va">motor_</span>;</a>
-<a class="sourceLine" id="cb2-57" data-line-number="57">    Battery <span class="va">battery_</span>;</a>
-<a class="sourceLine" id="cb2-58" data-line-number="58">    ...</a>
-<a class="sourceLine" id="cb2-59" data-line-number="59">};</a></code></pre>
+<a class="sourceLine" id="cb2-3" data-line-number="3">  <span class="kw">public</span>:</a>
+<a class="sourceLine" id="cb2-4" data-line-number="4">    <span class="co">// this is &quot;C++ese&quot; for an interface method with no default implementation</span></a>
+<a class="sourceLine" id="cb2-5" data-line-number="5">    <span class="kw">virtual</span> <span class="dt">void</span> go_camping() = <span class="dv">0</span>;</a>
+<a class="sourceLine" id="cb2-6" data-line-number="6"></a>
+<a class="sourceLine" id="cb2-7" data-line-number="7">    <span class="kw">virtual</span> <span class="dt">void</span> haul() = <span class="dv">0</span>;</a>
+<a class="sourceLine" id="cb2-8" data-line-number="8">};</a>
+<a class="sourceLine" id="cb2-9" data-line-number="9"></a>
+<a class="sourceLine" id="cb2-10" data-line-number="10"><span class="kw">class</span> GasPoweredTruck: <span class="kw">public</span> Truck {</a>
+<a class="sourceLine" id="cb2-11" data-line-number="11">  <span class="kw">public</span>:</a>
+<a class="sourceLine" id="cb2-12" data-line-number="12">    ...</a>
+<a class="sourceLine" id="cb2-13" data-line-number="13"></a>
+<a class="sourceLine" id="cb2-14" data-line-number="14">    <span class="kw">virtual</span> <span class="dt">void</span> go_camping()</a>
+<a class="sourceLine" id="cb2-15" data-line-number="15">    {</a>
+<a class="sourceLine" id="cb2-16" data-line-number="16">        <span class="va">engine_</span>.start();</a>
+<a class="sourceLine" id="cb2-17" data-line-number="17">        ...</a>
+<a class="sourceLine" id="cb2-18" data-line-number="18">    }</a>
+<a class="sourceLine" id="cb2-19" data-line-number="19"></a>
+<a class="sourceLine" id="cb2-20" data-line-number="20">    <span class="kw">virtual</span> <span class="dt">void</span> haul(<span class="at">const</span> Cargo&amp; c)</a>
+<a class="sourceLine" id="cb2-21" data-line-number="21">    {</a>
+<a class="sourceLine" id="cb2-22" data-line-number="22">        <span class="va">engine_</span>.start();</a>
+<a class="sourceLine" id="cb2-23" data-line-number="23">        ...</a>
+<a class="sourceLine" id="cb2-24" data-line-number="24">    }</a>
+<a class="sourceLine" id="cb2-25" data-line-number="25"></a>
+<a class="sourceLine" id="cb2-26" data-line-number="26">    <span class="dt">double</span> fuel_remaining()</a>
+<a class="sourceLine" id="cb2-27" data-line-number="27">    {</a>
+<a class="sourceLine" id="cb2-28" data-line-number="28">        ...</a>
+<a class="sourceLine" id="cb2-29" data-line-number="29">    }</a>
+<a class="sourceLine" id="cb2-30" data-line-number="30"></a>
+<a class="sourceLine" id="cb2-31" data-line-number="31">    ...</a>
+<a class="sourceLine" id="cb2-32" data-line-number="32"></a>
+<a class="sourceLine" id="cb2-33" data-line-number="33">  <span class="kw">private</span>:</a>
+<a class="sourceLine" id="cb2-34" data-line-number="34">    InternalCombustionEngine <span class="va">engine_</span>;</a>
+<a class="sourceLine" id="cb2-35" data-line-number="35">    ...</a>
+<a class="sourceLine" id="cb2-36" data-line-number="36">};</a>
+<a class="sourceLine" id="cb2-37" data-line-number="37"></a>
+<a class="sourceLine" id="cb2-38" data-line-number="38"><span class="kw">class</span> TeslaCybertruck : <span class="kw">public</span> Truck {</a>
+<a class="sourceLine" id="cb2-39" data-line-number="39">  <span class="kw">public</span>:</a>
+<a class="sourceLine" id="cb2-40" data-line-number="40">    ...</a>
+<a class="sourceLine" id="cb2-41" data-line-number="41"></a>
+<a class="sourceLine" id="cb2-42" data-line-number="42">    <span class="kw">virtual</span> <span class="dt">void</span> go_camping()</a>
+<a class="sourceLine" id="cb2-43" data-line-number="43">    {</a>
+<a class="sourceLine" id="cb2-44" data-line-number="44">        <span class="va">battery_</span>.check_voltage();</a>
+<a class="sourceLine" id="cb2-45" data-line-number="45">        ...</a>
+<a class="sourceLine" id="cb2-46" data-line-number="46">    }</a>
+<a class="sourceLine" id="cb2-47" data-line-number="47"></a>
+<a class="sourceLine" id="cb2-48" data-line-number="48">    <span class="kw">virtual</span> <span class="dt">void</span> haul()</a>
+<a class="sourceLine" id="cb2-49" data-line-number="49">    {</a>
+<a class="sourceLine" id="cb2-50" data-line-number="50">        <span class="va">battery_</span>.check_voltage();</a>
+<a class="sourceLine" id="cb2-51" data-line-number="51">        ...</a>
+<a class="sourceLine" id="cb2-52" data-line-number="52">    }</a>
+<a class="sourceLine" id="cb2-53" data-line-number="53"></a>
+<a class="sourceLine" id="cb2-54" data-line-number="54">    ...</a>
+<a class="sourceLine" id="cb2-55" data-line-number="55"></a>
+<a class="sourceLine" id="cb2-56" data-line-number="56">  <span class="kw">private</span>:</a>
+<a class="sourceLine" id="cb2-57" data-line-number="57">    ElectricMotor <span class="va">motor_</span>;</a>
+<a class="sourceLine" id="cb2-58" data-line-number="58">    Battery <span class="va">battery_</span>;</a>
+<a class="sourceLine" id="cb2-59" data-line-number="59">    ...</a>
+<a class="sourceLine" id="cb2-60" data-line-number="60">};</a></code></pre>
 <p>Here we only make the claim we can defend: that a Cybertruck can do everything a gasoline-powered truck can do. As an aside, those of you who know enough C++ to understand why <code>go_camping</code> and <code>haul</code> are <code>virtual</code> functions already understand open recursion, if not in those terms!</p>
 <p>In any case, we’d be hard-pressed to argue that implementation inheritance is “fundamental” in any way to object-oriented programming. As a counter-example, I’d propose that the Microsoft COM model might be one of the most purely object-oriented systems ever put into practice, and it operates purely via interfaces like our <code>Truck</code> above - no implementation inheritance. Code reuse is achieved through composition, directly modeling the “is-implemented-in-terms-of” relationship.</p>
 <p>We find ourselves at last at, in my opinion, the true crux of object-oriented programming: polymorphism. But we are going to need to get more specific to make any further progress. Let’s consider a much better definition, or at least a much more qualified one, from the person who coined the term “object-oriented programming”.</p>
@@ -169,12 +171,16 @@
 <a class="sourceLine" id="cb3-6" data-line-number="6">    }</a>
 <a class="sourceLine" id="cb3-7" data-line-number="7">}</a></code></pre>
 <p>Each truck in the vector which we operate on may be of a different (sub)type - we can happily have a beach party with ordinary trucks and Cybertrucks, with each executing the appropriate definitions of <code>haul</code> and <code>go_camping</code>.</p>
-<p>We can do this because the call to each truck’s relevant functions is <em>late bound</em>, <em>dynamically dispatched</em>, or <em>virtually dispatched</em> - these terms are (mostly) equivalent. The meaning is by contrast to <em>early dispatch</em>, where the compiler would choose the function to be called based on the statically-known type of the variable <code>t</code> (<code>Truck</code> - note this would end poorly with our example code, in a pure virtual call exception) rather than generate code to choose an implementation at runtime based on the “dynamic type” (<code>GasPoweredTruck</code> or <code>Cybertruck</code>) of each object.</p>
+<p>We can do this because the call to each truck’s relevant functions is <em>late bound</em>, <em>dynamically dispatched</em>, or <em>virtually dispatched</em> - these terms are (mostly) equivalent. The meaning is by contrast to <em>early binding</em>, where the compiler would choose the function to be called based on the statically-known type of the variable <code>t</code> (<code>Truck</code> - note this would end poorly with our example code, in a pure virtual call exception) rather than generate code to choose an implementation at runtime based on the “dynamic type” (<code>GasPoweredTruck</code> or <code>Cybertruck</code>) of each object.</p>
 <p>There’s another, even more interesting implication of the combination of late binding with inclusion polymorphism provides to us.</p>
-<h3 class="title">call me, maybe</h3>
+<h3 class="title">Call <code>Me</code>, Maybe</h3>
 <p>It’s commonplace for new code to call old code. We’ve taken it for granted for many years, since the first “subroutine library”, that we can build up programs one piece at a time, re-using the work we’ve already done when possible.</p>
-<p>A more novel trick is for old code to call new code!</p>
-<h3 class="title">when I think about you, I touch my <code>self</code></h3>
+<p>A more novel trick is for old code to call new code! In our <code>beach_party</code> example, for instance, we could later define a new subclass of Truck with different definitions of our required functions. Assuming our compiler hasn’t changed the <a href="https://en.wikipedia.org/wiki/Application_binary_interface">ABI</a> out from under us (abstractions always leak, eventually), we can add objects of this new class (say, <code>SolarTruck</code>) to the vector we pass to <code>beach_party</code> and it’ll do the right thing - even if we don’t recompile <code>beach_party</code> (again, assuming the ABI has not changed).</p>
+<p>This is enabled by late binding - we don’t need the compiler to be aware of every possible callee, just to know the “protocol” to call them dynamically.</p>
+<p>… is this the place for a digression about function pointers? to justify “that’s still not that interesting”, then bring in open recursion</p>
+<p>… several thousand words in, time to introduce the thing we’re talking about</p>
+<h3 class="title">When I Think About You, I Touch My <code>self</code></h3>
+<p>… ok, time for Python</p>
 
         <!--#include file="/include/after.html" -->
     </body>
