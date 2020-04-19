@@ -172,7 +172,7 @@
 <a class="sourceLine" id="cb3-7" data-line-number="7">}</a></code></pre>
 <p>Each truck in the vector which we operate on may be of a different (sub)type - we can happily have a beach party with ordinary trucks and Cybertrucks, with each executing the appropriate definitions of <code>haul</code> and <code>go_camping</code>.</p>
 <p>We can do this because the call to each truck’s relevant functions is <em>late bound</em>, <em>dynamically dispatched</em>, or <em>virtually dispatched</em> - these terms are (mostly) equivalent. The meaning is by contrast to <em>early binding</em>, where the compiler would choose the function to be called based on the statically-known type of the variable <code>t</code> (<code>Truck</code> - note this would end poorly with our example code, in a pure virtual call exception) rather than generate code to choose an implementation at runtime based on the “dynamic type” (<code>GasPoweredTruck</code> or <code>Cybertruck</code>) of each object.</p>
-<p>There’s another, even more interesting implication of the combination of late binding with inclusion polymorphism provides to us.</p>
+<p>There’s another, even more interesting implication of the combination of late binding with inclusion polymorphism.</p>
 <h3 class="title">Call <code>Me</code>, Maybe</h3>
 <p>It’s commonplace for new code to call old code. We’ve taken it for granted for many years, since the first “subroutine library”, that we can build up programs one piece at a time, re-using the work we’ve already done when possible.</p>
 <p>A more novel trick is for old code to call new code! In our <code>beach_party</code> example, for instance, we could later define a new subclass of Truck with different definitions of our required functions. Assuming our compiler hasn’t changed the <a href="https://en.wikipedia.org/wiki/Application_binary_interface">ABI</a> out from under us (abstractions always leak, eventually), we can add objects of this new class (say, <code>SolarTruck</code>) to the vector we pass to <code>beach_party</code> and it’ll do the right thing - even if we don’t recompile <code>beach_party</code> (again, assuming the ABI has not changed).</p>
@@ -202,6 +202,10 @@
 <a class="sourceLine" id="cb4-23" data-line-number="23">    do_it(print_twice_it);</a>
 <a class="sourceLine" id="cb4-24" data-line-number="24">    <span class="cf">return</span> <span class="dv">0</span>;</a>
 <a class="sourceLine" id="cb4-25" data-line-number="25">}</a></code></pre>
+<blockquote>
+<p><code>x is 3</code><br />
+<code>twice x is 6</code></p>
+</blockquote>
 <p>However, subtyping grants us a surprising ability. Here’s a somewhat contrived example in C++:</p>
 <pre class="sourceCode cpp" id="cb5"><code class="sourceCode cpp"><a class="sourceLine" id="cb5-1" data-line-number="1"><span class="pp">#include </span><span class="im">&lt;iostream&gt;</span></a>
 <a class="sourceLine" id="cb5-2" data-line-number="2"></a>
@@ -244,9 +248,172 @@
 <a class="sourceLine" id="cb5-39" data-line-number="39">    clr.call(d);</a>
 <a class="sourceLine" id="cb5-40" data-line-number="40">    clr.call(fd);</a>
 <a class="sourceLine" id="cb5-41" data-line-number="41">}</a></code></pre>
-<p>We can write code in a superclass which calls code in a subclass - even if the subclass is written (and compiled) much later.</p>
+<blockquote>
+<p><code>10</code><br />
+<code>&gt;&gt;&gt;&gt;&gt; 10 &lt;&lt;&lt;&lt;&lt;</code></p>
+</blockquote>
+<p>We can write code in a superclass which calls code in a subclass - even if the subclass is written (and compiled) much later. Even though the <code>do_it</code> function is not itself dynamically dispatched, it provides a “template” which can be filled in by each subclass’s definition of the <code>hook</code> function, which is late-bound. The C++ community uses this structure frequently and refers to it as the “non-virtual interface” pattern. For our purposes, though, we’re less interested in the benefits C++ programmers derive from hiding late binding behind an early-bound interface, and more interested in the odd interplay of inclusion/subtype polymorphism and late binding.</p>
+<p>To me, this is perhaps the single most interesting feature of “object-oriented programming”. We can use this feature to build frameworks (what’s the difference between a library and framework? you call a library, a framework calls you) which can be extended by code written later, in a very controlled manner.</p>
+<p>Type theorists and programming language researchers refer to this feature of the semantics of object-oriented languages as <em>open recursion</em>. “Recursion” makes sense - we have functions on an object calling other functions on the same object. But what do we mean by “open”? For a rigorous explanation, Benjamin Pierce’s <a href="https://www.cis.upenn.edu/~bcpierce/tapl/">Types and Programming Languages</a> is probably the best source (it’s where I picked up the terminology, although I’ve not been able to track down a reference for the original coinage). Ralf Hinze’s <a href="http://www.cs.ox.ac.uk/people/ralf.hinze/talks/Open.pdf">slides</a> provide a more concise sketch of the semantics. We’ll approach the topic from a more practical direction - by building up our own toy “object system”.</p>
 <h3 class="title">When I Think About You, I Touch My <code>self</code></h3>
-<p>… ok, time for Python</p>
+<p>We can easily port our C++ program to Python:</p>
+<pre class="sourceCode python" id="cb6"><code class="sourceCode python"><a class="sourceLine" id="cb6-1" data-line-number="1"><span class="kw">class</span> Doubler:</a>
+<a class="sourceLine" id="cb6-2" data-line-number="2">    <span class="kw">def</span> do_it(<span class="va">self</span>, x):</a>
+<a class="sourceLine" id="cb6-3" data-line-number="3">        <span class="va">self</span>.hook(x <span class="op">*</span> <span class="dv">2</span>)</a>
+<a class="sourceLine" id="cb6-4" data-line-number="4"></a>
+<a class="sourceLine" id="cb6-5" data-line-number="5">    <span class="kw">def</span> hook(<span class="va">self</span>, x):</a>
+<a class="sourceLine" id="cb6-6" data-line-number="6">        <span class="bu">print</span>(x)</a>
+<a class="sourceLine" id="cb6-7" data-line-number="7"></a>
+<a class="sourceLine" id="cb6-8" data-line-number="8"><span class="kw">class</span> FancyDoubler(Doubler):</a>
+<a class="sourceLine" id="cb6-9" data-line-number="9">    <span class="kw">def</span> hook(<span class="va">self</span>, x):</a>
+<a class="sourceLine" id="cb6-10" data-line-number="10">        <span class="bu">print</span>(<span class="ss">f&#39;&gt;&gt;&gt;&gt;&gt; </span><span class="sc">{x}</span><span class="ss"> &lt;&lt;&lt;&lt;&lt;&#39;</span>)</a>
+<a class="sourceLine" id="cb6-11" data-line-number="11"></a>
+<a class="sourceLine" id="cb6-12" data-line-number="12"><span class="kw">class</span> Caller:</a>
+<a class="sourceLine" id="cb6-13" data-line-number="13">    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, val):</a>
+<a class="sourceLine" id="cb6-14" data-line-number="14">        <span class="va">self</span>.val <span class="op">=</span> val</a>
+<a class="sourceLine" id="cb6-15" data-line-number="15"></a>
+<a class="sourceLine" id="cb6-16" data-line-number="16">    <span class="kw">def</span> call(<span class="va">self</span>, callee):</a>
+<a class="sourceLine" id="cb6-17" data-line-number="17">        callee.do_it(<span class="va">self</span>.val)</a>
+<a class="sourceLine" id="cb6-18" data-line-number="18"></a>
+<a class="sourceLine" id="cb6-19" data-line-number="19">clr <span class="op">=</span> Caller(<span class="dv">5</span>)</a>
+<a class="sourceLine" id="cb6-20" data-line-number="20">d <span class="op">=</span> Doubler()</a>
+<a class="sourceLine" id="cb6-21" data-line-number="21">fd <span class="op">=</span> FancyDoubler()</a>
+<a class="sourceLine" id="cb6-22" data-line-number="22"></a>
+<a class="sourceLine" id="cb6-23" data-line-number="23">clr.call(d)</a>
+<a class="sourceLine" id="cb6-24" data-line-number="24">clr.call(fd)</a></code></pre>
+<blockquote>
+<p><code>10</code><br />
+<code>&gt;&gt;&gt;&gt;&gt; 10 &lt;&lt;&lt;&lt;&lt;</code></p>
+</blockquote>
+<p>Modulo differences in the underlying implementation (dispatch through dictionaries vs. indirect calls through “vtables”), this program has the same semantics as our earlier C++ program. In C++ terms, all class methods in Python are <code>virtual</code> and thus permit open recursion.</p>
+<p>What are we really doing, here, though? And why do all of our class methods need that <code>self</code> argument? Let’s pretend for a time that we are programmers from an alternate timeline where Python does not have classes. Instead, we’ll use only the imperative and functional programming features of Python. How could we achieve the same semantics?</p>
+<p>Consider that an object can be viewed from two perspectives: as a bundle of data with some functions that operate on it, or as a bundle of functions which share common data. In Python and many other languages, we can achieve the latter by constructing <em>closures</em>. The concept of <em>closure</em> in programming language semantics refers to the handling of free variables which appear in function definitions in most languages which provide functions as first-class values.</p>
+<p>In Python, for instance, we can write:</p>
+<pre class="sourceCode python" id="cb7"><code class="sourceCode python"><a class="sourceLine" id="cb7-1" data-line-number="1"><span class="kw">def</span> make_adder(addend):</a>
+<a class="sourceLine" id="cb7-2" data-line-number="2">    <span class="kw">def</span> adder(augend):</a>
+<a class="sourceLine" id="cb7-3" data-line-number="3">        <span class="cf">return</span> addend <span class="op">+</span> augend</a>
+<a class="sourceLine" id="cb7-4" data-line-number="4"></a>
+<a class="sourceLine" id="cb7-5" data-line-number="5">    <span class="cf">return</span> adder</a>
+<a class="sourceLine" id="cb7-6" data-line-number="6"></a>
+<a class="sourceLine" id="cb7-7" data-line-number="7">a5 <span class="op">=</span> make_adder(<span class="dv">5</span>)</a>
+<a class="sourceLine" id="cb7-8" data-line-number="8"><span class="bu">print</span>(a5(<span class="dv">3</span>))</a>
+<a class="sourceLine" id="cb7-9" data-line-number="9"><span class="bu">print</span>(a5(<span class="dv">6</span>))</a></code></pre>
+<blockquote>
+<p><code>8</code><br />
+<code>11</code></p>
+</blockquote>
+<p>Inside the definition of <code>adder</code> (a function which is returned as a value from <code>make_adder</code>), we say that the variable <code>augend</code> is <em>bound</em>, because it appears as a function argument. We say that the variable <code>addend</code> is <em>free</em>, because it does not. In Python and most functional languages, the semantics of <code>adder</code> are that the function value “closes over” the value of <code>addend</code> captured from <code>make_adder</code>. We can think of the Python interpreter as packaging up the code which defines <code>adder</code> with the value of <code>addend</code> which <code>make_adder</code> was called with, and returning that bundle from <code>make_adder</code>. This bundle of a function definition plus the captured values of its free variables is often itself referred to as a “closure”.</p>
+<p>There’s a bit of programming folklore to the effect that “objects are a poor man’s closures” - and vice versa. Here’s why: we can build “objects” out of functions which close over common state. In our toy system, we’ll model objects as dictionaries of these closures. We’re going to have to use a funny keyword along the way, because Python is only imperfectly a lexically-scoped functional language.</p>
+<p>Here’s a simple “counter” object which tracks a count and provides the ability to increase or decrease it by one, as well as to retrieve the current value.</p>
+<pre class="sourceCode python" id="cb8"><code class="sourceCode python"><a class="sourceLine" id="cb8-1" data-line-number="1"><span class="kw">def</span> counter():</a>
+<a class="sourceLine" id="cb8-2" data-line-number="2">    x <span class="op">=</span> <span class="dv">0</span></a>
+<a class="sourceLine" id="cb8-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb8-4" data-line-number="4">    <span class="kw">def</span> increment():</a>
+<a class="sourceLine" id="cb8-5" data-line-number="5">        <span class="kw">nonlocal</span> x</a>
+<a class="sourceLine" id="cb8-6" data-line-number="6">        x <span class="op">+=</span> <span class="dv">1</span></a>
+<a class="sourceLine" id="cb8-7" data-line-number="7"></a>
+<a class="sourceLine" id="cb8-8" data-line-number="8">    <span class="kw">def</span> decrement():</a>
+<a class="sourceLine" id="cb8-9" data-line-number="9">        <span class="kw">nonlocal</span> x</a>
+<a class="sourceLine" id="cb8-10" data-line-number="10">        x <span class="op">-=</span> <span class="dv">1</span></a>
+<a class="sourceLine" id="cb8-11" data-line-number="11"></a>
+<a class="sourceLine" id="cb8-12" data-line-number="12">    <span class="kw">def</span> value():</a>
+<a class="sourceLine" id="cb8-13" data-line-number="13">        <span class="kw">nonlocal</span> x</a>
+<a class="sourceLine" id="cb8-14" data-line-number="14">        <span class="cf">return</span> x</a>
+<a class="sourceLine" id="cb8-15" data-line-number="15"></a>
+<a class="sourceLine" id="cb8-16" data-line-number="16">    <span class="cf">return</span> {</a>
+<a class="sourceLine" id="cb8-17" data-line-number="17">        <span class="st">&#39;increment&#39;</span>: increment,</a>
+<a class="sourceLine" id="cb8-18" data-line-number="18">        <span class="st">&#39;decrement&#39;</span>: decrement,</a>
+<a class="sourceLine" id="cb8-19" data-line-number="19">        <span class="st">&#39;value&#39;</span>: value</a>
+<a class="sourceLine" id="cb8-20" data-line-number="20">    }</a>
+<a class="sourceLine" id="cb8-21" data-line-number="21"></a>
+<a class="sourceLine" id="cb8-22" data-line-number="22"><span class="co"># we can use it like so:</span></a>
+<a class="sourceLine" id="cb8-23" data-line-number="23">c <span class="op">=</span> counter()</a>
+<a class="sourceLine" id="cb8-24" data-line-number="24">c[<span class="st">&#39;increment&#39;</span>]()</a>
+<a class="sourceLine" id="cb8-25" data-line-number="25">c[<span class="st">&#39;increment&#39;</span>]()</a>
+<a class="sourceLine" id="cb8-26" data-line-number="26">c[<span class="st">&#39;decrement&#39;</span>]()</a>
+<a class="sourceLine" id="cb8-27" data-line-number="27"><span class="bu">print</span>(c[<span class="st">&#39;value&#39;</span>]())</a></code></pre>
+<blockquote>
+<p><code>1</code></p>
+</blockquote>
+<p>Let’s try to recreate our “open recursion” example using this new approach. Here’s a first attempt. We’ll start by defining the <code>caller</code> and <code>doubler</code> classes via writing their closure-constructor functions.</p>
+<pre class="sourceCode python" id="cb9"><code class="sourceCode python"><a class="sourceLine" id="cb9-1" data-line-number="1"><span class="kw">def</span> caller(val):</a>
+<a class="sourceLine" id="cb9-2" data-line-number="2">    <span class="kw">def</span> call(callee):</a>
+<a class="sourceLine" id="cb9-3" data-line-number="3">        callee[<span class="st">&#39;do_it&#39;</span>](val)</a>
+<a class="sourceLine" id="cb9-4" data-line-number="4"></a>
+<a class="sourceLine" id="cb9-5" data-line-number="5">    <span class="cf">return</span> { <span class="st">&#39;call&#39;</span>: call }</a>
+<a class="sourceLine" id="cb9-6" data-line-number="6"></a>
+<a class="sourceLine" id="cb9-7" data-line-number="7"><span class="kw">def</span> doubler():</a>
+<a class="sourceLine" id="cb9-8" data-line-number="8">    <span class="kw">def</span> hook(x):</a>
+<a class="sourceLine" id="cb9-9" data-line-number="9">        <span class="bu">print</span>(x)</a>
+<a class="sourceLine" id="cb9-10" data-line-number="10"></a>
+<a class="sourceLine" id="cb9-11" data-line-number="11">    <span class="kw">def</span> do_it(x):</a>
+<a class="sourceLine" id="cb9-12" data-line-number="12">        hook(x <span class="op">*</span> <span class="dv">2</span>)</a>
+<a class="sourceLine" id="cb9-13" data-line-number="13"></a>
+<a class="sourceLine" id="cb9-14" data-line-number="14">    <span class="cf">return</span> { <span class="st">&#39;hook&#39;</span>: hook, <span class="st">&#39;do_it&#39;</span>: do_it }</a>
+<a class="sourceLine" id="cb9-15" data-line-number="15"></a>
+<a class="sourceLine" id="cb9-16" data-line-number="16">clr <span class="op">=</span> caller(<span class="dv">5</span>)</a>
+<a class="sourceLine" id="cb9-17" data-line-number="17">d <span class="op">=</span> doubler()</a>
+<a class="sourceLine" id="cb9-18" data-line-number="18">clr[<span class="st">&#39;call&#39;</span>](d)</a></code></pre>
+<blockquote>
+<p><code>10</code></p>
+</blockquote>
+<p>So far, so good.</p>
+<p>Now, let’s try to write the new version of <code>FancyDoubler</code>. We can model (implementation) inheritance by creating an “object” of the superclass and updating its dictionary of closures.</p>
+<pre class="sourceCode python" id="cb10"><code class="sourceCode python"><a class="sourceLine" id="cb10-1" data-line-number="1"><span class="kw">def</span> fancy_doubler():</a>
+<a class="sourceLine" id="cb10-2" data-line-number="2">    <span class="kw">def</span> hook(x):</a>
+<a class="sourceLine" id="cb10-3" data-line-number="3">        <span class="bu">print</span>(<span class="st">&#39;&gt;&gt;&gt;&gt;&gt; &#39;</span> <span class="op">+</span> <span class="bu">str</span>(x) <span class="op">+</span> <span class="st">&#39; &lt;&lt;&lt;&lt;&lt;&#39;</span>)</a>
+<a class="sourceLine" id="cb10-4" data-line-number="4"></a>
+<a class="sourceLine" id="cb10-5" data-line-number="5">    d <span class="op">=</span> doubler()</a>
+<a class="sourceLine" id="cb10-6" data-line-number="6">    d[<span class="st">&#39;hook&#39;</span>] <span class="op">=</span> hook</a>
+<a class="sourceLine" id="cb10-7" data-line-number="7">    <span class="cf">return</span> d</a>
+<a class="sourceLine" id="cb10-8" data-line-number="8"></a>
+<a class="sourceLine" id="cb10-9" data-line-number="9">fd <span class="op">=</span> fancy_doubler()</a>
+<a class="sourceLine" id="cb10-10" data-line-number="10">clr[<span class="st">&#39;call&#39;</span>](d)</a></code></pre>
+<blockquote>
+<p><code>10</code></p>
+</blockquote>
+<p>That’s not right at all! What went wrong?</p>
+<p>In the definition of <code>doubler</code>, the call to <code>hook</code> inside <code>do_it</code> was bound statically (that is, early) to the <code>hook</code> defined in the body of the <code>doubler</code> constructor function. In other words, we “closed over” the early-bound definition.</p>
+<p>To get the behavior we want back, we need to “open” the closure so that the implicit self-reference can be evaluated dynamically (late bound) rather than statically. Hence the name “open recursion”!</p>
+<p>We’ll take the same approach which Python adopted, by establishing a protocol where each “class method” (closure, in our model) takes an explicit self-reference as a first argument. The closures can then <em>indirectly</em> call other “class methods” via this argument, resulting in open recursion and proper late binding.</p>
+<p>By convention, as you’ve probably guessed, we’ll name this argument <code>self</code>.</p>
+<pre class="sourceCode python" id="cb11"><code class="sourceCode python"><a class="sourceLine" id="cb11-1" data-line-number="1"><span class="kw">def</span> caller(val):</a>
+<a class="sourceLine" id="cb11-2" data-line-number="2">    <span class="kw">def</span> call(<span class="va">self</span>, callee):</a>
+<a class="sourceLine" id="cb11-3" data-line-number="3">        callee[<span class="st">&#39;do_it&#39;</span>](callee, val)</a>
+<a class="sourceLine" id="cb11-4" data-line-number="4"></a>
+<a class="sourceLine" id="cb11-5" data-line-number="5">    <span class="cf">return</span> { <span class="st">&#39;call&#39;</span>: call }</a>
+<a class="sourceLine" id="cb11-6" data-line-number="6"></a>
+<a class="sourceLine" id="cb11-7" data-line-number="7"><span class="kw">def</span> doubler():</a>
+<a class="sourceLine" id="cb11-8" data-line-number="8">    <span class="kw">def</span> hook(<span class="va">self</span>, x):</a>
+<a class="sourceLine" id="cb11-9" data-line-number="9">        <span class="bu">print</span>(x)</a>
+<a class="sourceLine" id="cb11-10" data-line-number="10"></a>
+<a class="sourceLine" id="cb11-11" data-line-number="11">    <span class="kw">def</span> do_it(<span class="va">self</span>, x):</a>
+<a class="sourceLine" id="cb11-12" data-line-number="12">        <span class="co"># here&#39;s the explicit &quot;open&quot; recursion via self</span></a>
+<a class="sourceLine" id="cb11-13" data-line-number="13">        <span class="va">self</span>[<span class="st">&#39;hook&#39;</span>](<span class="va">self</span>, x <span class="op">*</span> <span class="dv">2</span>)</a>
+<a class="sourceLine" id="cb11-14" data-line-number="14"></a>
+<a class="sourceLine" id="cb11-15" data-line-number="15">    <span class="cf">return</span> { <span class="st">&#39;hook&#39;</span>: hook, <span class="st">&#39;do_it&#39;</span>: do_it }</a>
+<a class="sourceLine" id="cb11-16" data-line-number="16"></a>
+<a class="sourceLine" id="cb11-17" data-line-number="17"><span class="kw">def</span> fancy_doubler():</a>
+<a class="sourceLine" id="cb11-18" data-line-number="18">    <span class="kw">def</span> hook(<span class="va">self</span>, x):</a>
+<a class="sourceLine" id="cb11-19" data-line-number="19">        <span class="bu">print</span>(<span class="st">&#39;&gt;&gt;&gt;&gt;&gt; &#39;</span> <span class="op">+</span> <span class="bu">str</span>(x) <span class="op">+</span> <span class="st">&#39; &lt;&lt;&lt;&lt;&lt;&#39;</span>)</a>
+<a class="sourceLine" id="cb11-20" data-line-number="20"></a>
+<a class="sourceLine" id="cb11-21" data-line-number="21">    d <span class="op">=</span> doubler()</a>
+<a class="sourceLine" id="cb11-22" data-line-number="22">    d[<span class="st">&#39;hook&#39;</span>] <span class="op">=</span> hook</a>
+<a class="sourceLine" id="cb11-23" data-line-number="23">    <span class="cf">return</span> d</a>
+<a class="sourceLine" id="cb11-24" data-line-number="24"></a>
+<a class="sourceLine" id="cb11-25" data-line-number="25">clr <span class="op">=</span> caller(<span class="dv">5</span>)</a>
+<a class="sourceLine" id="cb11-26" data-line-number="26">d <span class="op">=</span> doubler()</a>
+<a class="sourceLine" id="cb11-27" data-line-number="27">fd <span class="op">=</span> fancy_doubler()</a>
+<a class="sourceLine" id="cb11-28" data-line-number="28">clr[<span class="st">&#39;call&#39;</span>](clr, d)</a>
+<a class="sourceLine" id="cb11-29" data-line-number="29">clr[<span class="st">&#39;call&#39;</span>](clr, fd)</a></code></pre>
+<blockquote>
+<p><code>10</code><br />
+<code>&gt;&gt;&gt;&gt;&gt; 10 &lt;&lt;&lt;&lt;&lt;</code></p>
+</blockquote>
+<p>Now we see the desired late binding in action! Python doesn’t provide “implicit” open recursion, like C++ does. Instead, just like in our toy model, recursion between class methods occurs through the <code>self</code> argument.</p>
+<p>I hope this meandering path through object orientation and open recursion has helped illustrate one of the truly unique powers of the object-oriented style of programming. As you’ve seen, it complicates the semantics of OO languages, and it’s easy to imagine how it can be abused to create unmaintainable tangles of subclass methods and “ping-pong” dynamic dispatch. However, as a library or framework author, when you need to provide a “fill-in-the-blank” framework for carrying out a task, and especially when you want to provide sensible defaults for many of the blanks to be filled in, letting the client customize specific aspects as needed, there’s really nothing else like it.</p>
+<p>The technique isn’t limited to “OO” languages, either. As an example, I once implemented a system very similar to our toy system above as part of a parsing library written in Haskell. I wanted to provide client code the ability to quickly customize a “tree walker” for abstract syntax trees from the parser, filling in only the actions they cared about (e.g. run this code when a “integer expression” node is encountered). The solution was to provide a “base class” (in the form of a record of closures, just as we did in Python) whose elements were functions taking an explicit <code>self</code> argument, and which could be overridden in “subclass” records to provide customization points.</p>
+<p>Open recursion is a powerful and subtle tool, worth understanding well. I hope you’ll consider reaching for it the next time you need it.</p>
 
         <!--#include file="/include/after.html" -->
     </body>
