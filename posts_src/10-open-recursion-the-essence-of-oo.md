@@ -1,4 +1,4 @@
-# open recursion: the essence of OO
+# Open Recursion: the Essence of Object Oriented Programming?
 
 What is object-oriented programming really about? What's so special about "late binding"? And why do I have to pass `self` around everywhere in Python?
 We'll take a meandering path in today's post which will try to answer each of these questions, and build our own miniature object system along the way.
