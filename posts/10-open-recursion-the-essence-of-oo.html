@@ -202,7 +202,7 @@
 <a class="sourceLine" id="cb4-23" data-line-number="23">    do_it(print_twice_it);</a>
 <a class="sourceLine" id="cb4-24" data-line-number="24">    <span class="cf">return</span> <span class="dv">0</span>;</a>
 <a class="sourceLine" id="cb4-25" data-line-number="25">}</a></code></pre>
-<blockquote>
+<blockquote class="code-output">
 <p><code>x is 3</code><br />
 <code>twice x is 6</code></p>
 </blockquote>
@@ -248,7 +248,7 @@
 <a class="sourceLine" id="cb5-39" data-line-number="39">    clr.call(d);</a>
 <a class="sourceLine" id="cb5-40" data-line-number="40">    clr.call(fd);</a>
 <a class="sourceLine" id="cb5-41" data-line-number="41">}</a></code></pre>
-<blockquote>
+<blockquote class="code-output">
 <p><code>10</code><br />
 <code>&gt;&gt;&gt;&gt;&gt; 10 &lt;&lt;&lt;&lt;&lt;</code></p>
 </blockquote>
@@ -281,7 +281,7 @@
 <a class="sourceLine" id="cb6-22" data-line-number="22"></a>
 <a class="sourceLine" id="cb6-23" data-line-number="23">clr.call(d)</a>
 <a class="sourceLine" id="cb6-24" data-line-number="24">clr.call(fd)</a></code></pre>
-<blockquote>
+<blockquote class="code-output">
 <p><code>10</code><br />
 <code>&gt;&gt;&gt;&gt;&gt; 10 &lt;&lt;&lt;&lt;&lt;</code></p>
 </blockquote>
@@ -298,7 +298,7 @@
 <a class="sourceLine" id="cb7-7" data-line-number="7">a5 <span class="op">=</span> make_adder(<span class="dv">5</span>)</a>
 <a class="sourceLine" id="cb7-8" data-line-number="8"><span class="bu">print</span>(a5(<span class="dv">3</span>))</a>
 <a class="sourceLine" id="cb7-9" data-line-number="9"><span class="bu">print</span>(a5(<span class="dv">6</span>))</a></code></pre>
-<blockquote>
+<blockquote class="code-output">
 <p><code>8</code><br />
 <code>11</code></p>
 </blockquote>
@@ -332,7 +332,7 @@
 <a class="sourceLine" id="cb8-25" data-line-number="25">c[<span class="st">&#39;increment&#39;</span>]()</a>
 <a class="sourceLine" id="cb8-26" data-line-number="26">c[<span class="st">&#39;decrement&#39;</span>]()</a>
 <a class="sourceLine" id="cb8-27" data-line-number="27"><span class="bu">print</span>(c[<span class="st">&#39;value&#39;</span>]())</a></code></pre>
-<blockquote>
+<blockquote class="code-output">
 <p><code>1</code></p>
 </blockquote>
 <p>Let’s try to recreate our “open recursion” example using this new approach. Here’s a first attempt. We’ll start by defining the <code>caller</code> and <code>doubler</code> classes via writing their closure-constructor functions.</p>
@@ -354,7 +354,7 @@
 <a class="sourceLine" id="cb9-16" data-line-number="16">clr <span class="op">=</span> caller(<span class="dv">5</span>)</a>
 <a class="sourceLine" id="cb9-17" data-line-number="17">d <span class="op">=</span> doubler()</a>
 <a class="sourceLine" id="cb9-18" data-line-number="18">clr[<span class="st">&#39;call&#39;</span>](d)</a></code></pre>
-<blockquote>
+<blockquote class="code-output">
 <p><code>10</code></p>
 </blockquote>
 <p>So far, so good.</p>
@@ -369,7 +369,7 @@
 <a class="sourceLine" id="cb10-8" data-line-number="8"></a>
 <a class="sourceLine" id="cb10-9" data-line-number="9">fd <span class="op">=</span> fancy_doubler()</a>
 <a class="sourceLine" id="cb10-10" data-line-number="10">clr[<span class="st">&#39;call&#39;</span>](d)</a></code></pre>
-<blockquote>
+<blockquote class="code-output">
 <p><code>10</code></p>
 </blockquote>
 <p>That’s not right at all! What went wrong?</p>
@@ -406,7 +406,7 @@
 <a class="sourceLine" id="cb11-27" data-line-number="27">fd <span class="op">=</span> fancy_doubler()</a>
 <a class="sourceLine" id="cb11-28" data-line-number="28">clr[<span class="st">&#39;call&#39;</span>](clr, d)</a>
 <a class="sourceLine" id="cb11-29" data-line-number="29">clr[<span class="st">&#39;call&#39;</span>](clr, fd)</a></code></pre>
-<blockquote>
+<blockquote class="code-output">
 <p><code>10</code><br />
 <code>&gt;&gt;&gt;&gt;&gt; 10 &lt;&lt;&lt;&lt;&lt;</code></p>
 </blockquote>

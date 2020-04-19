@@ -117,6 +117,13 @@ blockquote {
     color: skyblue;
 }
 
+blockquote.code-output {
+    background-color: black;
+    color: white;
+    padding: 5px 0 5px 25px;
+    border-radius: 25px;
+}
+
 /*
 img.inline-right {
     float: right;
