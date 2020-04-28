@@ -63,9 +63,9 @@ t = Tafra({
 print(t.x ** 37.2)
 print(t.y + ' is the loneliest number')
 ```
-> `[1.00000000e+00 1.57875900e+11 5.60932593e+17 2.49247997e+22]`
-> `['one is the loneliest number' 'two is the loneliest number'`
-> `'one is the loneliest number' 'two is the loneliest number']`
+> `[1.00000000e+00 1.57875900e+11 5.60932593e+17 2.49247997e+22]`  
+> `['one is the loneliest number' 'two is the loneliest number'`  
+> `'one is the loneliest number' 'two is the loneliest number']`  
 
 We could provide other affordances, such as the ability to add columns to
 an existing tafra (with dynamic row-count checking), but let's jump ahead

@@ -49,7 +49,9 @@
 <blockquote class="code-output">
 <p><code>[1.00000000e+00 1.57875900e+11 5.60932593e+17 2.49247997e+22]</code>
 <br />
-<code>['one is the loneliest number' 'two is the loneliest number'</code> <code>'one is the loneliest number' 'two is the loneliest number']</code></p>
+<code>['one is the loneliest number' 'two is the loneliest number'</code>
+<br />
+<code>'one is the loneliest number' 'two is the loneliest number']</code></p>
 </blockquote>
 <p>We could provide other affordances, such as the ability to add columns to an existing tafra (with dynamic row-count checking), but let’s jump ahead to a more interesting problem: providing an operation analogous to SQL’s <code>group by</code>.</p>
 <p>In SQL, <code>group by</code> is used to produce a relation where each tuple in the relation corresponds to the unique combinations of values of one or more columns in the underlying data. The columns not used to produce unique combinations (that is, for “grouping”) must somehow be reduced from their original number of values to just one value per group. This is achieved by providing an aggregation function, which reduces multiple values into one - examples include <code>sum</code>, <code>min</code>, and <code>average</code>.</p>
