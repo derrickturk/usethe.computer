@@ -156,6 +156,8 @@
 <p>With these in place, the <code>group by</code> logic itself is almost mechanical: first, identify the unique combinations of the grouping columns. For each of these, identify which rows in the original tafra match each group, and for each column / aggregation pair in the spec, accumulate relevant values and apply the aggregation function. We accumulate the results into the required structure and produce our resulting tafra.</p>
 <hr>
 <p>My friend <a href="https://github.com/dsfulf/">David</a> (who also maintains the very-useful <a href="https://docs.daft-pgm.org/en/latest/">daft</a> package for PGM diagrams) has taken the <code>tafra</code> and run with it, adding some useful features like an equivalent for pandas’ <code>transform</code> function. You can play with it at <a href="https://test.pypi.org/project/tafra/0.1.0/">https://test.pypi.org/project/tafra/0.1.0/</a>.</p>
+<hr>
+Late-breaking update: what if we really did type "group by"? Sneak preview <a href="https://gist.github.com/derrickturk/bb078cd650f5e7e36fe8792b89157576">here</a>.
 
         <!--#include file="/include/after.html" -->
     </body>
