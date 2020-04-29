@@ -121,7 +121,9 @@ blockquote.code-output {
     background-color: black;
     color: white;
     padding: 5px 0 5px 25px;
-    border-radius: 25px;
+    margin: 0 auto;
+    min-width: calc(100% - 25px - 1em);
+    border-radius: 5px;
 }
 
 /*
@@ -145,6 +147,11 @@ a.sourceLine {
 }
 
 .sourceCode { overflow: visible; }
+
+pre.sourceCode {
+    border: 2px solid #c2bfa5;
+    padding: 1em;
+}
 
 code.sourceCode {
     font-family: 'Lucida Console', 'Consolas', 'Courier New', monospace;
