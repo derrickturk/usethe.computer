@@ -56,7 +56,7 @@ homogeneous) but the types differ between columns (that's what we mean by
 heterogeneous).
 
 Most data frame implementations allow for access by column (and sometimes even
-row) names rather than indices, but since that easy enough to add to an
+row) names rather than indices, but since that is easy enough to add to an
 ordinal-based implementation by using a lookup structure from names to indices,
 we'll work only with ordinal indices for our proof of concept.
 
@@ -678,7 +678,7 @@ Now we'll see the resulting values and types from manipulating it:
 ```
 
 We now have everything we need to build our minimalist data frames (as before,
-let's call this type a "tafra" (plural "tafrae"), because it's the "innards"
+let's call this type a "tafra", plural "tafrae"), because it's the "innards"
 of a proper data frame).
 ```idris
 namespace Tafra
@@ -868,7 +868,7 @@ expression, like `_` in the Python REPL):
 
 Finally, just like `pandas`, we can concatenate tafrae either "vertically"
 (appending rows) or "horizontally" (appending columns), but ours are checked!
-For vertical concatenation we need identical column types; for horizontally
+For vertical concatenation we need identical column types; for horizontal
 concatenation we need identical row counts.
 ```idris
 *tafra> someData ++ someData
@@ -1024,7 +1024,7 @@ To handle this in our type system, we use an *existential type* in the form of a
 If polymorphic types correspond to "for all" (universal quantification),
 existential types correspond to "there exists" (existential quantification).
 Object-oriented programmers work with existential types every day in the form
-of interfaces: they promise that "there exists" a value some concrete type
+of interfaces: they promise that "there exists" a value of some concrete type
 fulfilling the interface without statically committing to a given
 implementation.
 
@@ -1105,6 +1105,9 @@ these languages, to improve the performance of dependently-typed programs.
 Even with aggressive "erasure" (e.g. so all those `Nat` indices don't have to
 exist at runtime), performance is at best comparable to a "traditional"
 functional language---which is to say that performance is poor.
+(One side effect of this research was
+<a href="https://github.com/derrickturk/MinPS">MinPS</a>, which successfully
+compiles a dependently-typed core language to fairly crappy Javascript.)
 
 There are some reasons for optimism, though.
 For example, <a href="https://github.com/ollef/sixten">Sixten</a> is an
