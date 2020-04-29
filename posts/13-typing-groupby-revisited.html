@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <!--#set var="title" value="Typing group by, Revisited" -->
+        <!--#include file="/include/head.html" -->
+    </head>
+    <body>
+        <!--#include file="/include/before.html" -->
+        <h2 class="title">Typing <code>group by</code>, Revisited</h2>
+        <h3 class="date">2020-04-29</h3>
+
+<p>In an aside to a <a href="/posts/9-why-are-data-scientists-switching-from-R-to-python.html"> previous post</a>, I mentioned that I’d rather live in the alternate universe where data science tools were built on rich static type systems rather than evolved piecemeal from a variety of “dynamic” crud. <a href="/posts/12-typing-groupby.html">Yesterday</a>, we examined the semantics of SQL’s <code>group by</code> operation, and pieced together a minimalist version of a “data frame” in Python. I lamented that since Python didn’t provide a type system that let us check any invariants of interest, we’d have to do all these checks at runtime. Today, I’m going to put my money where my mouth is. Let’s peer into the alternate universe where data frames are well-typed, and answer the question left unanswered yesterday: what <em>is</em> the type of <code>group by</code>?</p>
+<p>This will take us “through the looking glass” to a world of purely functional code, dependent types, type-driven programming, and “correct-by-construction” data. <!-- TODO: this is stupid and you know it --> Let me show you how deep the rabbit hole goes.</p>
+<h3 class="title">Eats, Shoots, and Leaves</h3>
+<p><em>Data frames</em> are an oddity: a data structure ubiquitous in data science but relative unknown to ordinary programmers. I am not sure where they originated, but they go back at least to the early 90s via the S statistical programming language. I became familiar with them through S’s descendent R, which makes heavy use of them. Python programmers in data science will likely be familiar with data frames through the <code>pandas</code> library.</p>
+<p>Either way, the concept is the same: a data frame is a helpful representation for a tabular data set. It can be represented in one of in one of two ways: as a heterogeneous collection of homogeneous “columns”, or as a homogeneous collection of heterogeneous “rows”. The representations are <em>isomorphic</em>: we can losslessly go from one to the other and back.</p>
+<p>Data frames provide operations for accessing elements in various ways: by row, by column (either by ordinal number or by name), and by <em>slicing</em> along either of these dimensions.</p>
+<p>Consider a typical table, perhaps from a relational database or a spreadsheet.</p>
+<table>
+<thead>
+<tr class="header">
+<th>patientID</th>
+<th>age</th>
+<th>condition</th>
+<th>outcome</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td>43</td>
+<td>placebo</td>
+<td>no change</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td>29</td>
+<td>trial</td>
+<td>improved</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td>35</td>
+<td>trial</td>
+<td>no change</td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td>50</td>
+<td>placebo</td>
+<td>worsened</td>
+</tr>
+</tbody>
+</table>
+<p>We have four columns and four rows. The values within each column are all of the same type (that’s what we mean by homogeneous) but the types differ between columns (that’s what we mean by heterogeneous).</p>
+<p>Most data frame implementations allow for access by column (and sometimes even row) names rather than indices, but since that easy enough to add to an ordinal-based implementation by using a lookup structure from names to indices, we’ll work only with ordinal indices for our proof of concept.</p>
+<p>In <code>pandas</code>, we could create this data frame with the following:</p>
+<pre class="sourceCode python" id="cb1"><code class="sourceCode python"><a class="sourceLine" id="cb1-1" data-line-number="1"><span class="im">import</span> pandas <span class="im">as</span> pd</a>
+<a class="sourceLine" id="cb1-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb1-3" data-line-number="3">df <span class="op">=</span> pd.DataFrame({</a>
+<a class="sourceLine" id="cb1-4" data-line-number="4">    <span class="st">&#39;patientID&#39;</span>: [<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>],</a>
+<a class="sourceLine" id="cb1-5" data-line-number="5">    <span class="st">&#39;age&#39;</span>: [<span class="dv">43</span>, <span class="dv">29</span>, <span class="dv">35</span>, <span class="dv">50</span>],</a>
+<a class="sourceLine" id="cb1-6" data-line-number="6">    <span class="st">&#39;condition&#39;</span>: [<span class="st">&#39;placebo&#39;</span>, <span class="st">&#39;trial&#39;</span>, <span class="st">&#39;trial&#39;</span>, <span class="st">&#39;placebo&#39;</span>],</a>
+<a class="sourceLine" id="cb1-7" data-line-number="7">    <span class="st">&#39;outcome&#39;</span>: [<span class="st">&#39;no change&#39;</span>, <span class="st">&#39;improved&#39;</span>, <span class="st">&#39;no change&#39;</span>, <span class="st">&#39;worsened&#39;</span>],</a>
+<a class="sourceLine" id="cb1-8" data-line-number="8">})</a></code></pre>
+<p>We can see from the way the data frame is constructed that <code>pandas</code> uses the collection-of-columns representation. It’s a good choice, especially for performance reasons. In the Python context, it lets us use <code>numpy</code> arrays as column representations and take advantage of relatively fast vectorized operations on them.</p>
+<p>The tradeoff is that traversing a data frame by rows becomes slower and more difficult. In <code>pandas</code> we can convert a data frame into sequence-of-rows format using <code>df.itertuples()</code>.</p>
+<p>We can slice-and-dice a data frame in various ways:</p>
+<pre class="sourceCode python" id="cb2"><code class="sourceCode python"><a class="sourceLine" id="cb2-1" data-line-number="1"><span class="co"># one row</span></a>
+<a class="sourceLine" id="cb2-2" data-line-number="2"><span class="bu">print</span>(df.iloc[<span class="dv">1</span>])</a></code></pre>
+<blockquote class="code-output">
+<p><code>patientID           2</code><br />
+<code>age                29</code><br />
+<code>condition       trial</code><br />
+<code>outcome      improved</code><br />
+<code>Name: 1, dtype: object</code></p>
+</blockquote>
+<pre class="sourceCode python" id="cb3"><code class="sourceCode python"><a class="sourceLine" id="cb3-1" data-line-number="1"><span class="co"># one column</span></a>
+<a class="sourceLine" id="cb3-2" data-line-number="2"><span class="bu">print</span>(df.iloc[:,<span class="dv">1</span>])</a></code></pre>
+<blockquote class="code-output">
+<p><code>0    43</code><br />
+<code>1    29</code><br />
+<code>2    35</code><br />
+<code>3    50</code><br />
+<code>Name: age, dtype: int64</code></p>
+</blockquote>
+<pre class="sourceCode python" id="cb4"><code class="sourceCode python"><a class="sourceLine" id="cb4-1" data-line-number="1"><span class="co"># a row slice</span></a>
+<a class="sourceLine" id="cb4-2" data-line-number="2"><span class="bu">print</span>(df.iloc[<span class="dv">1</span>:<span class="dv">3</span>])</a></code></pre>
+<blockquote class="code-output">
+<p><code>patientID  age condition    outcome</code><br />
+<code>1          2   29     trial   improved</code><br />
+<code>2          3   35     trial  no change</code></p>
+</blockquote>
+<pre class="sourceCode python" id="cb5"><code class="sourceCode python"><a class="sourceLine" id="cb5-1" data-line-number="1"><span class="co"># a column slice</span></a>
+<a class="sourceLine" id="cb5-2" data-line-number="2"><span class="bu">print</span>(df.iloc[:,<span class="dv">1</span>:<span class="dv">3</span>])</a></code></pre>
+<blockquote class="code-output">
+<p><code>age condition</code><br />
+<code>0   43   placebo</code><br />
+<code>1   29     trial</code><br />
+<code>2   35     trial</code><br />
+<code>3   50   placebo</code></p>
+</blockquote>
+<p>Both R and <code>pandas</code> also provide a suite of “SQL-like” operations on data frames. For instance, we might split a data frame into sub-frames based on unique values of a key column—or perform a <code>group by</code> style aggregation. <code>pandas</code> provides this with the <code>groupby</code> method:</p>
+<pre class="sourceCode python" id="cb6"><code class="sourceCode python"><a class="sourceLine" id="cb6-1" data-line-number="1"><span class="im">import</span> numpy <span class="im">as</span> np</a>
+<a class="sourceLine" id="cb6-2" data-line-number="2">df.groupby(<span class="st">&#39;condition&#39;</span>).agg([<span class="bu">len</span>, np.mean])</a></code></pre>
+<blockquote class="code-output">
+<p><code>patientID      age</code><br />
+<code>len mean len  mean</code><br />
+<code>condition</code><br />
+<code>placebo           2  2.5   2  46.5</code><br />
+<code>trial             2  2.5   2  32.0</code></p>
+</blockquote>
+<p>That’s… something, alright. The <a href="https://pandas.pydata.org/pandas-docs/stable/user_guide/groupby.html">documentation</a> for <code>groupby</code> is literally bewildering. I’m sure there’s a way to get something more sensible out, but it’s opaque enough to me that I’m not tempted to try.</p>
+<p>This brings me to the reasons I am a <a href="https://github.com/derrickturk/antibiotics">notorious</a> <code>pandas</code> <a href="https://usethe.computer/posts/12-typing-groupby.html">hater</a>. I think <code>pandas</code> exposes way too large an API surface. It tries to do too many things; I’ve seen programmers use it just to read a small CSV file, or fetch a single column from a SQLite database. I’ve also seen horrific “SQL in Python” ETL scripts which take hours to do, in <code>pandas</code>, on the client side, what could be done in minutes on the database server with SQL.</p>
+<p>I don’t want to complain about performance today, though. Instead I want to complain about dynamic typing and its abuses. The problem I find when trying to make sense of <code>pandas</code> documentation is that none of the functions are “typed” in a meaningful way. They return objects of various runtime types depending upon the arguments passed, the shape of the dataframe, and the phase of the moon.</p>
+<p>I’m a huge fan of “type-driven development”: contrary to popular belief, most static typing aficionados don’t think they’re smarter than other programmers. To quote Dijkstra, we’re “fully aware of the limited size of [our] own skull[s]” and want the compiler to take care of as much tedious bookkeeping, and as much error checking, as possible! With a well-typed API, we can piece together software like a Lego set—a simple type signature can sometimes be more useful than reams of “operational” documentation like <code>pandas</code> provides.</p>
+<p>Data frames are tricky beasts for most statically typed languages. Your common-or-garden type systems don’t excel at typing heterogeneous collections, and less so at computing (say) the type of a resulting data frame from a slicing operation. We can do better, though, by taking a step outside the garden. In a few hundred lines of code, we’ll have a “prototype-quality” data frame implementation which statically checks:</p>
+<ul>
+<li>row counts</li>
+<li>column types</li>
+<li>indexing and slicing operations</li>
+<li>conversion between column-oriented and row-oriented representations</li>
+<li>split-by and group-by operations with arbitrary aggregation functions</li>
+</ul>
+<h3 class="title">Into the Mirror Universe</h3>
+<p>Most readers of this blog will have learned to program in the “procedural” or “imperative” fashion: programs are essentially laundry lists of instructions which manipulate the state of various mutable cells containing values. There are infinite variations on this theme (object-oriented programming, structured programming, <code>On Error GoTo HELL</code>) but they share a common, mechanistic philosophy of programming. Programming, in the imperative mode, is about a machine: we understand that the machine has a memory, and that it operates sequentially, loading instructions and executing them. A Turing machine, or something not unlike one, in short.</p>
+<p>There are other ways to model computation, equivalent in “power” (this is the crux of the <a href="https://en.wikipedia.org/wiki/Church%E2%80%93Turing_thesis"> Church-Turing thesis</a>. One such model is drawn from Alonzo Church’s work on the <em>lambda calculus</em>: a formal system for computing only with functions, in the mathematical sense.</p>
+<p>In imperative languages, we write “functions” but they often break the assumptions we can make of well-behaved mathematical functions: they may have side-effects like writing to a file, or altering mutable global state. As a consequence, we can’t indulge in equational reasoning about our programs. In an imperative language, <code>x == x</code> does not imply <code>f(x) == f(x)</code>: perhaps <code>f</code> uses and increments a global counter, say.</p>
+<p>The discipline of functional programming elaborates on the lambda calculus. We construct programs from <em>pure</em> “mathematical” functions. By <em>pure</em>, we mean that our functions do not have side effects (yes, this raises questions about how we ever “do” anything; we’ll return to this thought), but produce results which depend only and explicitly on their inputs.</p>
+<p>As a consequence, we can easily apply equational reasoning to our programs: if <code>x == x</code> then surely <code>f(x) == f(x)</code>. This has some benefits for compiler code optimization, but the primary benefit is to the programmer. We reduce the number of things we have to keep in our heads.</p>
+<p>Functional programming tends to operate on immutable structures (like prepend-only linked lists) rather than mutable structures (like contiguous mutable arrays). This poses some challenges for performance, but we generally have ways of working around them. When absolutely needed, most functional languages provide an “escape hatch” for executing imperative code—or better yet, for wrapping imperative code behind a safe functional interface.</p>
+<p>This is related to the answer to our previous question about interacting with the real world. One way or another, functional languages provide some loophole to “make things happen”: I/O and other side effects. Haskell’s (in)famous monads are an example of a principled solution to this problem.</p>
+<h3 class="title">“Well-Typed Programs Don’t Go Wrong”</h3>
+<p>Functional languages have been hotbeds of type theory research and type system development since Robin Milner’s work on ML in the 1970s. ML was, as the old saying goes, “an improvement on many of its successors”: it pioneered type inference for polymorphic functions, algebraic data types, and the use of pattern matching as a concise notation for working with inductively-defined data.</p>
+<p>Milner famously coined the slogan “well-typed programs can’t go wrong”, which is a bit misleading. Of course programs of any sort can “go wrong”—but Milner means “go wrong” in a specific technical sense. In a <em>sound</em> type system, programs which typecheck can’t exhibit the sort of “undefined behavior” we find in languages like C: they are <a href="https://en.wikipedia.org/wiki/Undefined_behavior">nasal-demon</a> free even when they contain logic errors of the “do what I mean, not what I say” variety.</p>
+<p>On that note, how can we enhance our ability to “say what we mean” with types? ML kicked off a miniature Cambrian explosion of functional languages and type systems. O’Caml (a somewhat “conservative” evolution of ML with some object-oriented features) and Haskell (a more avant-garde “research language” which has begun to see more serious industrial use) are the most commonly known modern relatives.</p>
+<p>However, a lesser-known branch of the family tree permits the use of <em>dependent types</em>. Dependent on what? Henk Barendregt’s <a href="https://en.wikipedia.org/wiki/Lambda_cube">“lambda cube”</a> is my favorite way to answer this, but I’ll provide a short answer.</p>
+<p>Every language with a type system to speak of (even the ones that don’t realize it) has <em>types</em> and <em>terms</em>. <em>Terms</em> are the pieces of code we construct programs from, and <em>types</em> classify them. We say that a term “has” a type (although that type may not be unique!): the literal <code>3</code> is an integer.</p>
+<p>It’s common for terms to depend on other terms: we do this every time we write a function!</p>
+<p>Languages with polymorphic types (the imperative world tends to call these “generics”) make it possible for terms to depend on types as well: for instance, we might be able to write a polymorphic “pair-with-self” function <code>dup x = (x, x)</code> which is typed as something like <code>forall t . t -&gt; (t, t)</code>, where <code>t</code> is a “type variable” which stands in for any argument type the function is called with.</p>
+<p>These same languages also often provide polymorphic (or “generic”) <em>type constructors</em>, which let types depend on types. For a possibly more familiar example, we might have</p>
+<pre class="sourceCode c#" id="cb7"><code class="sourceCode cs"><a class="sourceLine" id="cb7-1" data-line-number="1"><span class="kw">class</span> List&lt;T&gt; {</a>
+<a class="sourceLine" id="cb7-2" data-line-number="2">    ...</a>
+<a class="sourceLine" id="cb7-3" data-line-number="3">    <span class="kw">private</span> T[] buffer;</a>
+<a class="sourceLine" id="cb7-4" data-line-number="4">}</a></code></pre>
+<p>Type constructors can be thought of as functions from types to types. Some languages, like Haskell, permit the use of <em>higher-kinded types</em> which allow polymorphism over type constructors themselves.</p>
+<p>However, there’s a combination we don’t usually see: what if types could depend on terms? This would let us write types like “the type of arrays of exactly 5 integers”, where <code>5</code> is just an ordinary term and not some wacky type-level emulation. This feature is exactly what we mean by <em>dependent types</em>. In a sense, dependent type systems erase the type vs. term distinction. We can freely intermix the two in our programs, even apply term-level functions inside type definitions.</p>
+<p>We’re going to be using a dependently-typed functional programming language called <a href="https://www.idris-lang.org/">Idris</a>. If you’d like to follow along, make sure you download and use the latest release of Idris 1 (not Idris 2, which is still an exciting work in progress).</p>
+<p>Idris has a very similar syntax to Haskell, with a few syntactic refinements and the addition of true dependent types. I highly recommend it as a relatively accessible first step into the dependently-typed world, especially if you have previous Haskell or even ML or Lisp experience. Edwin Brady’s <a href="https://www.manning.com/books/type-driven-development-with-idris"> Type-Driven Development with Idris</a> is a great resource: not as a language reference (that’s online), but rather to see an expert use dependent types “in anger” to solve surprising problems.</p>
+<p>A quick primer on Idris syntax, especially for non-Haskellers:</p>
+<pre class="sourceCode idris" id="cb8"><code class="sourceCode idris"><a class="sourceLine" id="cb8-1" data-line-number="1"><span class="co">-- this is a comment line</span></a>
+<a class="sourceLine" id="cb8-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb8-3" data-line-number="3"><span class="co">-- &quot;x has type Integer&quot; (a type signature)</span></a>
+<a class="sourceLine" id="cb8-4" data-line-number="4"><span class="fu">x</span> <span class="ot">:</span> <span class="dt">Integer</span></a>
+<a class="sourceLine" id="cb8-5" data-line-number="5"><span class="co">-- define x</span></a>
+<a class="sourceLine" id="cb8-6" data-line-number="6">x <span class="fu">=</span> <span class="dv">3</span></a>
+<a class="sourceLine" id="cb8-7" data-line-number="7"></a>
+<a class="sourceLine" id="cb8-8" data-line-number="8"><span class="co">-- function types are denoted by arrows</span></a>
+<a class="sourceLine" id="cb8-9" data-line-number="9"><span class="fu">add3</span> <span class="ot">:</span> <span class="dt">Integer</span> <span class="ot">-&gt;</span> <span class="dt">Integer</span></a>
+<a class="sourceLine" id="cb8-10" data-line-number="10"><span class="co">-- this is a function definition; definitions are by pattern matching</span></a>
+<a class="sourceLine" id="cb8-11" data-line-number="11"><span class="co">--   and thus mirror use</span></a>
+<a class="sourceLine" id="cb8-12" data-line-number="12">add3 x <span class="fu">=</span> x <span class="fu">+</span> <span class="dv">3</span></a>
+<a class="sourceLine" id="cb8-13" data-line-number="13"></a>
+<a class="sourceLine" id="cb8-14" data-line-number="14"><span class="co">-- function application is denoted by adjacency (not parentheses-they&#39;re just</span></a>
+<a class="sourceLine" id="cb8-15" data-line-number="15"><span class="co">--   for grouping), and is left-associative: f g x means (f g) x, not f (g x)</span></a>
+<a class="sourceLine" id="cb8-16" data-line-number="16"><span class="fu">y</span> <span class="ot">:</span> <span class="dt">Integer</span></a>
+<a class="sourceLine" id="cb8-17" data-line-number="17">y <span class="fu">=</span> add3 x</a>
+<a class="sourceLine" id="cb8-18" data-line-number="18"></a>
+<a class="sourceLine" id="cb8-19" data-line-number="19"><span class="co">-- multiple-argument functions are &quot;curried&quot;: they really take one argument at</span></a>
+<a class="sourceLine" id="cb8-20" data-line-number="20"><span class="co">--   a time and returned the &quot;partially applied&quot; function</span></a>
+<a class="sourceLine" id="cb8-21" data-line-number="21"><span class="fu">fusedMultAdd</span> <span class="ot">:</span> <span class="dt">Integer</span> <span class="ot">-&gt;</span> <span class="dt">Integer</span> <span class="ot">-&gt;</span> <span class="dt">Integer</span> <span class="ot">-&gt;</span> <span class="dt">Integer</span></a>
+<a class="sourceLine" id="cb8-22" data-line-number="22">fusedMultAdd a b c <span class="fu">=</span> a <span class="fu">+</span> (b <span class="fu">*</span> c)</a>
+<a class="sourceLine" id="cb8-23" data-line-number="23"></a>
+<a class="sourceLine" id="cb8-24" data-line-number="24"><span class="fu">multAdd5</span> <span class="ot">:</span> <span class="dt">Integer</span> <span class="ot">-&gt;</span> <span class="dt">Integer</span> <span class="ot">-&gt;</span> <span class="dt">Integer</span></a>
+<a class="sourceLine" id="cb8-25" data-line-number="25">multAdd5 <span class="fu">=</span> fusedMultAdd <span class="dv">5</span></a>
+<a class="sourceLine" id="cb8-26" data-line-number="26"></a>
+<a class="sourceLine" id="cb8-27" data-line-number="27"><span class="co">-- polymorphic terms and types use type variables, which we can create</span></a>
+<a class="sourceLine" id="cb8-28" data-line-number="28"><span class="co">--   &quot;implicitly&quot; by mentioning them</span></a>
+<a class="sourceLine" id="cb8-29" data-line-number="29"><span class="co">-- tuple types are written (ty1, ty2, ...)</span></a>
+<a class="sourceLine" id="cb8-30" data-line-number="30"><span class="fu">dup</span> <span class="ot">:</span> a <span class="ot">-&gt;</span> (a, a)</a>
+<a class="sourceLine" id="cb8-31" data-line-number="31">dup x <span class="fu">=</span> (x, x)</a>
+<a class="sourceLine" id="cb8-32" data-line-number="32"></a>
+<a class="sourceLine" id="cb8-33" data-line-number="33"><span class="co">-- terms which denote types have type Type (this is what I meant</span></a>
+<a class="sourceLine" id="cb8-34" data-line-number="34"><span class="co">--   about erasing distinctions)</span></a>
+<a class="sourceLine" id="cb8-35" data-line-number="35"><span class="fu">ty</span> <span class="ot">:</span> <span class="dt">Type</span></a>
+<a class="sourceLine" id="cb8-36" data-line-number="36"><span class="co">-- List is a type constructor of type Type -&gt; Type</span></a>
+<a class="sourceLine" id="cb8-37" data-line-number="37">ty <span class="fu">=</span> <span class="dt">List</span> <span class="dt">Integer</span></a>
+<a class="sourceLine" id="cb8-38" data-line-number="38"></a>
+<a class="sourceLine" id="cb8-39" data-line-number="39"><span class="co">-- we can write algebraic data types with potentially dependent</span></a>
+<a class="sourceLine" id="cb8-40" data-line-number="40"><span class="co">--   constructor type signatures</span></a>
+<a class="sourceLine" id="cb8-41" data-line-number="41"><span class="kw">data</span> <span class="dt">Either</span> <span class="ot">:</span> <span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb8-42" data-line-number="42">  <span class="dt">Left</span> <span class="ot">:</span> a <span class="ot">-&gt;</span> <span class="dt">Either</span> a b</a>
+<a class="sourceLine" id="cb8-43" data-line-number="43">  <span class="dt">Right</span> <span class="ot">:</span> b <span class="ot">-&gt;</span> <span class="dt">Either</span> a b</a></code></pre>
+<h3 class="title">Apple Pie from Scratch</h3>
+<blockquote>
+<p>If you wish to make an apple pie from scratch, you must first create the universe.<br />
+–Carl Sagan</p>
+</blockquote>
+<p>We’re going to do this the hard way. We’ll take full advantage of Idris’ type system, but make only minimal use of the standard library: everything with an “interesting” type, we’ll (re-)implement ourselves. We will make use of ordinary, non-dependent linked lists and a couple of functions on them in places: these are defined the “usual” way and re-implementation wouldn’t be germane or interesting.</p>
+<p>Many of the types we are about to implement appear in the Idris standard library: <code>Nat</code>, <code>Fin</code>, <code>Vect</code>, and <code>HVect</code> are all available, and for the most part should be implemented nearly identically. This isn’t because we’re going to copy-and-paste code! In fact, we’re going to let the compiler write most of the code for us, following the type signatures. Given the types involved, there’s often “one right way” to do it, which the compiler can efficiently guide us toward. This is a fun feature of Idris which really has to be experienced to be believed; you can watch it in action to get a taste in Edwin Brady’s <a href="https://www.youtube.com/watch?v=gonVdPyVwQQ">conference talk</a> on type-driven development.</p>
+<p>Building these types from scratch will give us the opportunity to ease into the shallow end of dependent typing before encountering the more complex types and definitions which will be involved in defining data frames.</p>
+<h3 class="title">Peano Recital</h3>
+<p>The few of you who have seen dependently-typed programs before probably can guess what’s coming next. We’re going to need to talk about structures of known length, and reason about them inductively. In order to do this, we’re going to need to construct the natural numbers (that is, the non-negative integers) first!</p>
+<p>Following the <a href="https://en.wikipedia.org/wiki/Peano_axioms">Peano</a> style, we’ll define naturals inductively: a natural number is either zero (<code>Z</code>), or the successor (<code>S n</code>) of (“one more than”) a natural number.</p>
+<p>Our program proper begins here—all subsequent code snippets, except REPL interactions (you’ll see a <code>*tafra&gt;</code> prompt), are part of the same Idris module.</p>
+<pre class="sourceCode idris" id="cb9"><code class="sourceCode idris"><a class="sourceLine" id="cb9-1" data-line-number="1"><span class="kw">%hide</span> Nat</a>
+<a class="sourceLine" id="cb9-2" data-line-number="2"><span class="co">-- we&#39;ll roll our own, this is Carl Sagan&#39;s apple pie</span></a>
+<a class="sourceLine" id="cb9-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb9-4" data-line-number="4"><span class="co">-- natural numbers a la Peano</span></a>
+<a class="sourceLine" id="cb9-5" data-line-number="5"><span class="kw">data</span> <span class="dt">Nat</span> <span class="ot">:</span> <span class="dt">Type</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb9-6" data-line-number="6">  <span class="dt">Z</span> <span class="ot">:</span> <span class="dt">Nat</span></a>
+<a class="sourceLine" id="cb9-7" data-line-number="7">  <span class="dt">S</span> <span class="ot">:</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Nat</span></a>
+<a class="sourceLine" id="cb9-8" data-line-number="8"></a>
+<a class="sourceLine" id="cb9-9" data-line-number="9"><span class="co">-- addition, by recursion on the left</span></a>
+<a class="sourceLine" id="cb9-10" data-line-number="10"><span class="fu">plus</span> <span class="ot">:</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Nat</span></a>
+<a class="sourceLine" id="cb9-11" data-line-number="11">plus <span class="dt">Z</span> m <span class="fu">=</span> m</a>
+<a class="sourceLine" id="cb9-12" data-line-number="12">plus (<span class="dt">S</span> n) m <span class="fu">=</span> <span class="dt">S</span> (plus n m)</a></code></pre>
+<p>This is a verbose representation: for instance, 3 is represented as <code>S (S (S Z))</code>. That’s annoying from a human perspective when dealing with larger numbers, but there are workarounds. We’ll use raw Peano representations, though, for clarity and consistency. It’s also problematic from a performance standpoint: 3 is represented by a linked list of 3 elements! One can see that this won’t necessarily scale. Performance is a theme we’ll return to; for now we’ll remark that in many cases we’ll be able to “erase” these numbers so that they don’t need to exist at runtime, but this is an imperfect art and performance is a valid concern.</p>
+<p>We can now talk about lengths or counts (<em>cardinal</em> numbers), but what about indices (<em>ordinal</em> numbers)? Let’s introduce the notion of “finite sets” of natural numbers less than a given number. For a given <code>n : Nat</code>, values of type <code>Fin n</code> will exactly correspond to valid indices into a collection of length <code>n</code> (assuming zero-based indexing, as all decent folk should—and you thought that was arbitrary convention).</p>
+<pre class="sourceCode idris" id="cb10"><code class="sourceCode idris"><a class="sourceLine" id="cb10-1" data-line-number="1"><span class="co">-- &quot;finite sets&quot; - naturals less than a given number</span></a>
+<a class="sourceLine" id="cb10-2" data-line-number="2"><span class="kw">data</span> <span class="dt">Fin</span> <span class="ot">:</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb10-3" data-line-number="3">  <span class="dt">FZ</span> <span class="ot">:</span> <span class="dt">Fin</span> (<span class="dt">S</span> n) <span class="co">-- zero is less than any successor</span></a>
+<a class="sourceLine" id="cb10-4" data-line-number="4">  <span class="dt">FS</span> <span class="ot">:</span> <span class="dt">Fin</span> n <span class="ot">-&gt;</span> <span class="dt">Fin</span> (<span class="dt">S</span> n) <span class="co">-- by induction</span></a></code></pre>
+<p>We will build these indices the same way as our naturals, and the same caveats apply: to request the third element of a collection we’ll need <code>FS (FS FZ)</code>.</p>
+<p>Now we need something to index into! We’ll start by building homogeneous vectors: these are exactly the representation we’ll use for each column of our data frames. In dependent-typing parlance, vector types are parameterized by their length (a <code>Nat</code>) and their element type (a <code>Type</code>).</p>
+<p>We can use pattern matching to provide checked inductive definitions for access, concatenation, and mapping—tracking the result types with “type-level arithmetic”. Of course, in Idris, our type-level arithmetic is just arithmetic!</p>
+<pre class="sourceCode idris" id="cb11"><code class="sourceCode idris"><a class="sourceLine" id="cb11-1" data-line-number="1"><span class="co">-- &quot;vectors&quot; - known-length homogeneous sequences</span></a>
+<a class="sourceLine" id="cb11-2" data-line-number="2"><span class="kw">namespace</span> <span class="dt">Vect</span></a>
+<a class="sourceLine" id="cb11-3" data-line-number="3">  <span class="kw">data</span> <span class="dt">Vect</span> <span class="ot">:</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb11-4" data-line-number="4">    <span class="dt">Nil</span> <span class="ot">:</span> <span class="dt">Vect</span> <span class="dt">Z</span> a</a>
+<a class="sourceLine" id="cb11-5" data-line-number="5">    <span class="fu">(::)</span> <span class="ot">:</span> a <span class="ot">-&gt;</span> <span class="dt">Vect</span> n a <span class="ot">-&gt;</span> <span class="dt">Vect</span> (<span class="dt">S</span> n) a</a>
+<a class="sourceLine" id="cb11-6" data-line-number="6"></a>
+<a class="sourceLine" id="cb11-7" data-line-number="7">  <span class="co">-- bounds-checked element access</span></a>
+<a class="sourceLine" id="cb11-8" data-line-number="8">  <span class="fu">index</span> <span class="ot">:</span> <span class="dt">Fin</span> n <span class="ot">-&gt;</span> <span class="dt">Vect</span> n a <span class="ot">-&gt;</span> a</a>
+<a class="sourceLine" id="cb11-9" data-line-number="9">  index <span class="dt">FZ</span> (x <span class="ot">::</span> <span class="fu">_</span>) <span class="fu">=</span> x</a>
+<a class="sourceLine" id="cb11-10" data-line-number="10">  index (<span class="dt">FS</span> n) (<span class="fu">_</span> <span class="ot">::</span> xs) <span class="fu">=</span> index n xs</a>
+<a class="sourceLine" id="cb11-11" data-line-number="11"></a>
+<a class="sourceLine" id="cb11-12" data-line-number="12">  <span class="co">-- length-tracking concatenation</span></a>
+<a class="sourceLine" id="cb11-13" data-line-number="13">  <span class="fu">(++)</span> <span class="ot">:</span> <span class="dt">Vect</span> n a <span class="ot">-&gt;</span> <span class="dt">Vect</span> m a <span class="ot">-&gt;</span> <span class="dt">Vect</span> (plus n m) a</a>
+<a class="sourceLine" id="cb11-14" data-line-number="14">  [] <span class="fu">++</span> ys <span class="fu">=</span> ys</a>
+<a class="sourceLine" id="cb11-15" data-line-number="15">  (x <span class="ot">::</span> xs) <span class="fu">++</span> ys <span class="fu">=</span> x <span class="ot">::</span> xs <span class="fu">++</span> ys</a>
+<a class="sourceLine" id="cb11-16" data-line-number="16"></a>
+<a class="sourceLine" id="cb11-17" data-line-number="17">  <span class="co">-- we can map over vectors, preserving type</span></a>
+<a class="sourceLine" id="cb11-18" data-line-number="18">  <span class="dt">Functor</span> (<span class="dt">Vect</span> n) <span class="kw">where</span></a>
+<a class="sourceLine" id="cb11-19" data-line-number="19">    map f [] <span class="fu">=</span> []</a>
+<a class="sourceLine" id="cb11-20" data-line-number="20">    map f (x <span class="ot">::</span> xs) <span class="fu">=</span> f x <span class="ot">::</span> map f xs</a>
+<a class="sourceLine" id="cb11-21" data-line-number="21"></a>
+<a class="sourceLine" id="cb11-22" data-line-number="22">  <span class="co">-- we&#39;ll want this later to implement &quot;slicing&quot;</span></a>
+<a class="sourceLine" id="cb11-23" data-line-number="23">  <span class="fu">vslice</span> <span class="ot">:</span> <span class="dt">Vect</span> k (<span class="dt">Fin</span> n) <span class="ot">-&gt;</span> <span class="dt">Vect</span> n a <span class="ot">-&gt;</span> <span class="dt">Vect</span> k a</a>
+<a class="sourceLine" id="cb11-24" data-line-number="24">  vslice [] <span class="fu">_</span> <span class="fu">=</span> []</a>
+<a class="sourceLine" id="cb11-25" data-line-number="25">  vslice (i <span class="ot">::</span> is) xs <span class="fu">=</span> index i xs <span class="ot">::</span> vslice is xs</a>
+<a class="sourceLine" id="cb11-26" data-line-number="26"></a>
+<a class="sourceLine" id="cb11-27" data-line-number="27">  <span class="co">-- we&#39;ll want this to walk two parallel vectors in &quot;lock-step&quot;</span></a>
+<a class="sourceLine" id="cb11-28" data-line-number="28">  <span class="fu">zip</span> <span class="ot">:</span> <span class="dt">Vect</span> n a <span class="ot">-&gt;</span> <span class="dt">Vect</span> n b <span class="ot">-&gt;</span> <span class="dt">Vect</span> n (a, b)</a>
+<a class="sourceLine" id="cb11-29" data-line-number="29">  zip [] [] <span class="fu">=</span> []</a>
+<a class="sourceLine" id="cb11-30" data-line-number="30">  zip (x<span class="ot">::</span>xs) (y<span class="ot">::</span>ys) <span class="fu">=</span> (x, y)<span class="ot">::</span>zip xs ys</a></code></pre>
+<p>We’re now equipped to model known-length homogeneous collections. Idris has a nice syntax sugar: it will translate <code>[x, y, z]</code> into <code>x :: y :: z :: []</code>, for any type with constructors <code>::</code> (“cons”) and <code>Nil</code>.</p>
+<p>This lets us write linked lists, vectors, and even the more interesting types we’ll be constructing shortly using the same convenient notation.</p>
+<p>Let’s define an example <code>Vect</code> of 3 strings, and another of 4 strings.</p>
+<pre class="sourceCode idris" id="cb12"><code class="sourceCode idris"><a class="sourceLine" id="cb12-1" data-line-number="1"><span class="fu">exVect1</span> <span class="ot">:</span> <span class="dt">Vect</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>))) <span class="dt">String</span></a>
+<a class="sourceLine" id="cb12-2" data-line-number="2">exVect1 <span class="fu">=</span> [<span class="st">&quot;first&quot;</span>, <span class="st">&quot;second&quot;</span>, <span class="st">&quot;third&quot;</span>]</a>
+<a class="sourceLine" id="cb12-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb12-4" data-line-number="4"><span class="fu">exVect2</span> <span class="ot">:</span> <span class="dt">Vect</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>)))) <span class="dt">String</span></a>
+<a class="sourceLine" id="cb12-5" data-line-number="5">exVect2 <span class="fu">=</span> [<span class="st">&quot;uno&quot;</span>, <span class="st">&quot;dos&quot;</span>, <span class="st">&quot;tres&quot;</span>, <span class="st">&quot;catorce&quot;</span>]</a></code></pre>
+<p>We can try out our functions at the Idris REPL. For example, we can index a <code>Vect</code> with an appropriate <code>Fin</code>, but not an invalid one!</p>
+<pre class="sourceCode idris" id="cb13"><code class="sourceCode idris"><a class="sourceLine" id="cb13-1" data-line-number="1"><span class="fu">*</span>tafra<span class="fu">&gt;</span> index (<span class="dt">FS</span> (<span class="dt">FS</span> (<span class="dt">FS</span> <span class="dt">FZ</span>))) exVect2</a>
+<a class="sourceLine" id="cb13-2" data-line-number="2"><span class="st">&quot;catorce&quot;</span> <span class="ot">:</span> <span class="dt">String</span></a>
+<a class="sourceLine" id="cb13-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb13-4" data-line-number="4"><span class="fu">*</span>tafra<span class="fu">&gt;</span> index (<span class="dt">FS</span> (<span class="dt">FS</span> (<span class="dt">FS</span> <span class="dt">FZ</span>))) exVect1</a>
+<a class="sourceLine" id="cb13-5" data-line-number="5">(input)<span class="ot">:</span><span class="dv">1</span><span class="ot">:</span><span class="dv">1-36</span><span class="ot">:</span><span class="dt">When</span> checking an application <span class="kw">of</span> function <span class="dt">Main</span><span class="fu">.</span><span class="dt">Vect</span><span class="fu">.</span>index<span class="ot">:</span></a>
+<a class="sourceLine" id="cb13-6" data-line-number="6">        <span class="dt">Type</span> mismatch between</a>
+<a class="sourceLine" id="cb13-7" data-line-number="7">                <span class="dt">Vect</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>))) <span class="dt">String</span> (<span class="dt">Type</span> <span class="kw">of</span> exVect1)</a>
+<a class="sourceLine" id="cb13-8" data-line-number="8">        and</a>
+<a class="sourceLine" id="cb13-9" data-line-number="9">                <span class="dt">Vect</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> n)))) iType (<span class="dt">Expected</span> type)</a>
+<a class="sourceLine" id="cb13-10" data-line-number="10"></a>
+<a class="sourceLine" id="cb13-11" data-line-number="11">        <span class="dt">Specifically</span><span class="ot">:</span></a>
+<a class="sourceLine" id="cb13-12" data-line-number="12">                <span class="dt">Type</span> mismatch between</a>
+<a class="sourceLine" id="cb13-13" data-line-number="13">                        <span class="dt">Z</span></a>
+<a class="sourceLine" id="cb13-14" data-line-number="14">                and</a>
+<a class="sourceLine" id="cb13-15" data-line-number="15">                        <span class="dt">S</span> n</a></code></pre>
+<p>That error is saying we “ran out of valid indices” (in other words, hit <code>Z</code>) before reaching our requested index. Note that it’s not happening “at runtime”—this is the compiler carrying out static type checking.</p>
+<p><code>vslice</code> is a “vector slice” operation which we’ll want later. It fetches multiple elements from a <code>Vect</code>, using a collection of indices which is itself a <code>Vect</code> of <code>Fin n</code>, where <code>n</code> is the length of the <code>Vect</code> we’re indexing in to. This gives us safe, checked slicing:</p>
+<pre class="sourceCode idris" id="cb14"><code class="sourceCode idris"><a class="sourceLine" id="cb14-1" data-line-number="1"><span class="fu">*</span>tafra<span class="fu">&gt;</span> vslice [<span class="dt">FZ</span>, <span class="dt">FZ</span>, (<span class="dt">FS</span> (<span class="dt">FS</span> (<span class="dt">FS</span> <span class="dt">FZ</span>)))] exVect2</a>
+<a class="sourceLine" id="cb14-2" data-line-number="2">[<span class="st">&quot;uno&quot;</span>, <span class="st">&quot;uno&quot;</span>, <span class="st">&quot;catorce&quot;</span>] <span class="ot">:</span> <span class="dt">Vect</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>))) <span class="dt">String</span></a>
+<a class="sourceLine" id="cb14-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb14-4" data-line-number="4"><span class="fu">*</span>tafra<span class="fu">&gt;</span> vslice [<span class="dt">FZ</span>, <span class="dt">FZ</span>, (<span class="dt">FS</span> (<span class="dt">FS</span> (<span class="dt">FS</span> <span class="dt">FZ</span>)))] exVect1</a>
+<a class="sourceLine" id="cb14-5" data-line-number="5">(input)<span class="ot">:</span><span class="dv">1</span><span class="ot">:</span><span class="dv">1-42</span><span class="ot">:</span><span class="dt">When</span> checking an application <span class="kw">of</span> function <span class="dt">Main</span><span class="fu">.</span><span class="dt">Vect</span><span class="fu">.</span>vslice<span class="ot">:</span></a>
+<a class="sourceLine" id="cb14-6" data-line-number="6">        <span class="dt">Type</span> mismatch between</a>
+<a class="sourceLine" id="cb14-7" data-line-number="7">                <span class="dt">Vect</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>))) <span class="dt">String</span> (<span class="dt">Type</span> <span class="kw">of</span> exVect1)</a>
+<a class="sourceLine" id="cb14-8" data-line-number="8">        and</a>
+<a class="sourceLine" id="cb14-9" data-line-number="9">                <span class="dt">Vect</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> n)))) a (<span class="dt">Expected</span> type)</a>
+<a class="sourceLine" id="cb14-10" data-line-number="10"></a>
+<a class="sourceLine" id="cb14-11" data-line-number="11">        <span class="dt">Specifically</span><span class="ot">:</span></a>
+<a class="sourceLine" id="cb14-12" data-line-number="12">                <span class="dt">Type</span> mismatch between</a>
+<a class="sourceLine" id="cb14-13" data-line-number="13">                        <span class="dt">Z</span></a>
+<a class="sourceLine" id="cb14-14" data-line-number="14">                and</a>
+<a class="sourceLine" id="cb14-15" data-line-number="15">                        <span class="dt">S</span> n</a></code></pre>
+<p><code>map</code>, <code>++</code> (concatenation), and <code>zip</code> work just like their equivalents for lists, but with length checking.</p>
+<pre class="sourceCode idris" id="cb15"><code class="sourceCode idris"><a class="sourceLine" id="cb15-1" data-line-number="1"><span class="fu">*</span>tafra<span class="fu">&gt;</span> zip exVect1 exVect1</a>
+<a class="sourceLine" id="cb15-2" data-line-number="2">[(<span class="st">&quot;first&quot;</span>, <span class="st">&quot;first&quot;</span>), (<span class="st">&quot;second&quot;</span>, <span class="st">&quot;second&quot;</span>), (<span class="st">&quot;third&quot;</span>, <span class="st">&quot;third&quot;</span>)]</a>
+<a class="sourceLine" id="cb15-3" data-line-number="3">  <span class="ot">:</span> <span class="dt">Vect</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>))) (<span class="dt">String</span>, <span class="dt">String</span>)</a>
+<a class="sourceLine" id="cb15-4" data-line-number="4"></a>
+<a class="sourceLine" id="cb15-5" data-line-number="5"><span class="fu">*</span>tafra<span class="fu">&gt;</span> exVect1 <span class="fu">++</span> exVect2</a>
+<a class="sourceLine" id="cb15-6" data-line-number="6">[<span class="st">&quot;first&quot;</span>, <span class="st">&quot;second&quot;</span>, <span class="st">&quot;third&quot;</span>, <span class="st">&quot;uno&quot;</span>, <span class="st">&quot;dos&quot;</span>, <span class="st">&quot;tres&quot;</span>, <span class="st">&quot;catorce&quot;</span>]</a>
+<a class="sourceLine" id="cb15-7" data-line-number="7">  <span class="ot">:</span> <span class="dt">Vect</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>))))))) <span class="dt">String</span></a>
+<a class="sourceLine" id="cb15-8" data-line-number="8"></a>
+<a class="sourceLine" id="cb15-9" data-line-number="9"><span class="co">-- OK, a little cheat here: the result of length is a built-in Nat, not our Nat</span></a>
+<a class="sourceLine" id="cb15-10" data-line-number="10"><span class="fu">*</span>tafra<span class="fu">&gt;</span> map length exVect1</a>
+<a class="sourceLine" id="cb15-11" data-line-number="11">[<span class="dv">5</span>, <span class="dv">6</span>, <span class="dv">5</span>] <span class="ot">:</span> <span class="dt">Vect</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>))) <span class="dt">Nat</span></a></code></pre>
+<p>We won’t go into as much detail regarding all the functions which operate on our next types, but hopefully that provides a taste of interactive development with Idris and some intuition for how our types are working.</p>
+<h3 class="title">Modeling Heterogeneity</h3>
+<p>Here’s where things get interesting, and where we start to move beyond what can be done straightforwardly with anything short of full dependent types. Everything previous to this point can be written, perhaps tediously, in not-quite-fully-dependent systems: we can construct things like <code>Nat</code> at the type level; or, better, we can take advantage of “lightweight dependent types” features like <a href="/posts/2-potd-gadt-oop.html">GADTs</a>.</p>
+<p>In large part that’s because the types resulting from, say, indexing a <code>Vect</code> are easily determined. Since a <code>Vect</code> is homogeneous, the only interesting check is for index validity; the type of any element is fixed.</p>
+<p>To represent “rows” of our data frames, we’re going to need a heterogeneous structure: something like a tuple. We’ll parameterize these <code>HVect</code> (heterogeneous vector) types by a <code>Vect n Type</code>—in other words, by the vector of their element types.</p>
+<pre class="sourceCode idris" id="cb16"><code class="sourceCode idris"><a class="sourceLine" id="cb16-1" data-line-number="1"><span class="co">-- heterogeneous vectors - we&#39;ll need these to represent &quot;rows&quot;</span></a>
+<a class="sourceLine" id="cb16-2" data-line-number="2"><span class="kw">namespace</span> <span class="dt">HVect</span></a>
+<a class="sourceLine" id="cb16-3" data-line-number="3">  <span class="kw">data</span> <span class="dt">HVect</span> <span class="ot">:</span> <span class="dt">Vect</span> n <span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb16-4" data-line-number="4">    <span class="dt">Nil</span> <span class="ot">:</span> <span class="dt">HVect</span> []</a>
+<a class="sourceLine" id="cb16-5" data-line-number="5">    <span class="fu">(::)</span> <span class="ot">:</span> a <span class="ot">-&gt;</span> <span class="dt">HVect</span> as <span class="ot">-&gt;</span> <span class="dt">HVect</span> (a<span class="ot">::</span>as)</a>
+<a class="sourceLine" id="cb16-6" data-line-number="6"></a>
+<a class="sourceLine" id="cb16-7" data-line-number="7">  <span class="co">-- bounds-checked element access, with appropriate return type</span></a>
+<a class="sourceLine" id="cb16-8" data-line-number="8">  <span class="fu">index</span> <span class="ot">:</span> {n <span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb16-9" data-line-number="9">          {as <span class="ot">:</span> <span class="dt">Vect</span> n <span class="dt">Type</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb16-10" data-line-number="10">          (i <span class="ot">:</span> <span class="dt">Fin</span> n) <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb16-11" data-line-number="11">          <span class="dt">HVect</span> as <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb16-12" data-line-number="12">          index i as</a>
+<a class="sourceLine" id="cb16-13" data-line-number="13">  index <span class="dt">FZ</span> [] <span class="kw">impossible</span></a>
+<a class="sourceLine" id="cb16-14" data-line-number="14">  index (<span class="dt">FS</span> <span class="fu">_</span>) [] <span class="kw">impossible</span></a>
+<a class="sourceLine" id="cb16-15" data-line-number="15">  index <span class="dt">FZ</span> (x <span class="ot">::</span> <span class="fu">_</span>) <span class="fu">=</span> x</a>
+<a class="sourceLine" id="cb16-16" data-line-number="16">  index (<span class="dt">FS</span> i) (<span class="fu">_</span> <span class="ot">::</span> xs) <span class="fu">=</span> index i xs</a>
+<a class="sourceLine" id="cb16-17" data-line-number="17"></a>
+<a class="sourceLine" id="cb16-18" data-line-number="18">  <span class="co">-- HVects can be compared for equality, when their components</span></a>
+<a class="sourceLine" id="cb16-19" data-line-number="19">  <span class="co">--   are comparable - we&#39;ll need this for &quot;group by&quot;</span></a>
+<a class="sourceLine" id="cb16-20" data-line-number="20"></a>
+<a class="sourceLine" id="cb16-21" data-line-number="21">  <span class="dt">Eq</span> (<span class="dt">HVect</span> []) <span class="kw">where</span></a>
+<a class="sourceLine" id="cb16-22" data-line-number="22">    [] <span class="fu">==</span> [] <span class="fu">=</span> <span class="dt">True</span></a>
+<a class="sourceLine" id="cb16-23" data-line-number="23"></a>
+<a class="sourceLine" id="cb16-24" data-line-number="24">  (<span class="dt">Eq</span> a, <span class="dt">Eq</span> (<span class="dt">HVect</span> as)) <span class="ot">=&gt;</span> <span class="dt">Eq</span> (<span class="dt">HVect</span> (a<span class="ot">::</span>as)) <span class="kw">where</span></a>
+<a class="sourceLine" id="cb16-25" data-line-number="25">    (x <span class="ot">::</span> xs) <span class="fu">==</span> (y <span class="ot">::</span> ys) <span class="fu">=</span> x <span class="fu">==</span> y <span class="fu">&amp;&amp;</span> xs <span class="fu">==</span> ys</a>
+<a class="sourceLine" id="cb16-26" data-line-number="26"></a>
+<a class="sourceLine" id="cb16-27" data-line-number="27">  <span class="co">-- length- and type-tracking concatenation</span></a>
+<a class="sourceLine" id="cb16-28" data-line-number="28">  <span class="fu">(++)</span> <span class="ot">:</span> <span class="dt">HVect</span> as <span class="ot">-&gt;</span> <span class="dt">HVect</span> bs <span class="ot">-&gt;</span> <span class="dt">HVect</span> (as <span class="fu">++</span> bs)</a>
+<a class="sourceLine" id="cb16-29" data-line-number="29">  [] <span class="fu">++</span> ys <span class="fu">=</span> ys</a>
+<a class="sourceLine" id="cb16-30" data-line-number="30">  (x <span class="ot">::</span> xs) <span class="fu">++</span> ys <span class="fu">=</span> x <span class="ot">::</span> xs <span class="fu">++</span> ys</a>
+<a class="sourceLine" id="cb16-31" data-line-number="31"></a>
+<a class="sourceLine" id="cb16-32" data-line-number="32">  <span class="co">-- first element only</span></a>
+<a class="sourceLine" id="cb16-33" data-line-number="33">  <span class="fu">head</span> <span class="ot">:</span> <span class="dt">HVect</span> (a<span class="ot">::</span>as) <span class="ot">-&gt;</span> a</a>
+<a class="sourceLine" id="cb16-34" data-line-number="34">  head (x <span class="ot">::</span> <span class="fu">_</span>) <span class="fu">=</span> x</a>
+<a class="sourceLine" id="cb16-35" data-line-number="35"></a>
+<a class="sourceLine" id="cb16-36" data-line-number="36">  <span class="co">-- all but first element</span></a>
+<a class="sourceLine" id="cb16-37" data-line-number="37">  <span class="fu">tail</span> <span class="ot">:</span> <span class="dt">HVect</span> (a<span class="ot">::</span>as) <span class="ot">-&gt;</span> <span class="dt">HVect</span> as</a>
+<a class="sourceLine" id="cb16-38" data-line-number="38">  tail (<span class="fu">_</span> <span class="ot">::</span> xs) <span class="fu">=</span> xs</a></code></pre>
+<p>Let’s create an example <code>HVect</code> and interact with it at the REPL. Remember, because our data constructors are called <code>::</code> and <code>Nil</code>, we can use <code>[x, y, z]</code> notation.</p>
+<pre class="sourceCode idris" id="cb17"><code class="sourceCode idris"><a class="sourceLine" id="cb17-1" data-line-number="1"><span class="fu">exHVect</span> <span class="ot">:</span> <span class="dt">HVect</span> [<span class="dt">Integer</span>, <span class="dt">String</span>, <span class="dt">Nat</span>, <span class="dt">String</span>]</a>
+<a class="sourceLine" id="cb17-2" data-line-number="2">exHVect <span class="fu">=</span> [<span class="dv">2</span>, <span class="st">&quot;fast&quot;</span>, (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>)), <span class="st">&quot;furious&quot;</span>]</a></code></pre>
+<p>Now we’ll see the resulting values and types from manipulating it:</p>
+<pre class="sourceCode idris" id="cb18"><code class="sourceCode idris"><a class="sourceLine" id="cb18-1" data-line-number="1"><span class="fu">*</span>tafra<span class="fu">&gt;</span> index (<span class="dt">FS</span> <span class="dt">FZ</span>) exHVect</a>
+<a class="sourceLine" id="cb18-2" data-line-number="2"><span class="st">&quot;fast&quot;</span> <span class="ot">:</span> <span class="dt">String</span></a>
+<a class="sourceLine" id="cb18-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb18-4" data-line-number="4"><span class="fu">*</span>tafra<span class="fu">&gt;</span> exHVect <span class="fu">++</span> exHVect</a>
+<a class="sourceLine" id="cb18-5" data-line-number="5">[<span class="dv">2</span>, <span class="st">&quot;fast&quot;</span>, <span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>), <span class="st">&quot;furious&quot;</span>, <span class="dv">2</span>, <span class="st">&quot;fast&quot;</span>, <span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>), <span class="st">&quot;furious&quot;</span>]</a>
+<a class="sourceLine" id="cb18-6" data-line-number="6">  <span class="ot">:</span> <span class="dt">HVect</span> [<span class="dt">Integer</span>,</a>
+<a class="sourceLine" id="cb18-7" data-line-number="7">           <span class="dt">String</span>,</a>
+<a class="sourceLine" id="cb18-8" data-line-number="8">           <span class="dt">Nat</span>,</a>
+<a class="sourceLine" id="cb18-9" data-line-number="9">           <span class="dt">String</span>,</a>
+<a class="sourceLine" id="cb18-10" data-line-number="10">           <span class="dt">Integer</span>,</a>
+<a class="sourceLine" id="cb18-11" data-line-number="11">           <span class="dt">String</span>,</a>
+<a class="sourceLine" id="cb18-12" data-line-number="12">           <span class="dt">Nat</span>,</a>
+<a class="sourceLine" id="cb18-13" data-line-number="13">           <span class="dt">String</span>]</a>
+<a class="sourceLine" id="cb18-14" data-line-number="14"></a>
+<a class="sourceLine" id="cb18-15" data-line-number="15"><span class="fu">*</span>tafra<span class="fu">&gt;</span> head exHVect</a>
+<a class="sourceLine" id="cb18-16" data-line-number="16"><span class="dv">2</span> <span class="ot">:</span> <span class="dt">Integer</span></a>
+<a class="sourceLine" id="cb18-17" data-line-number="17"></a>
+<a class="sourceLine" id="cb18-18" data-line-number="18"><span class="fu">*</span>tafra<span class="fu">&gt;</span> tail exHVect</a>
+<a class="sourceLine" id="cb18-19" data-line-number="19">[<span class="st">&quot;fast&quot;</span>, <span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>), <span class="st">&quot;furious&quot;</span>] <span class="ot">:</span> <span class="dt">HVect</span> [<span class="dt">String</span>, <span class="dt">Nat</span>, <span class="dt">String</span>]</a></code></pre>
+<p>We now have everything we need to build our minimalist data frames (as before, let’s call this type a “tafra” (plural “tafrae”), because it’s the “innards” of a proper data frame).</p>
+<pre class="sourceCode idris" id="cb19"><code class="sourceCode idris"><a class="sourceLine" id="cb19-1" data-line-number="1"><span class="kw">namespace</span> <span class="dt">Tafra</span></a>
+<a class="sourceLine" id="cb19-2" data-line-number="2"><span class="co">-- a &quot;tafra&quot; is a list of same-length vectors of various types</span></a>
+<a class="sourceLine" id="cb19-3" data-line-number="3"><span class="co">-- the type is indexed by the row count and a vector of column types</span></a>
+<a class="sourceLine" id="cb19-4" data-line-number="4">  <span class="kw">data</span> <span class="dt">Tafra</span> <span class="ot">:</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Vect</span> n <span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb19-5" data-line-number="5">    <span class="dt">Nil</span> <span class="ot">:</span> <span class="dt">Tafra</span> n []</a>
+<a class="sourceLine" id="cb19-6" data-line-number="6">    <span class="fu">(::)</span> <span class="ot">:</span> <span class="dt">Vect</span> n a <span class="ot">-&gt;</span> <span class="dt">Tafra</span> n as <span class="ot">-&gt;</span> <span class="dt">Tafra</span> n (a<span class="ot">::</span>as)</a>
+<a class="sourceLine" id="cb19-7" data-line-number="7"></a>
+<a class="sourceLine" id="cb19-8" data-line-number="8">  <span class="co">-- we can concatenate tafras with the same column types and different</span></a>
+<a class="sourceLine" id="cb19-9" data-line-number="9">  <span class="co">--   row counts &quot;vertically&quot;</span></a>
+<a class="sourceLine" id="cb19-10" data-line-number="10">  <span class="fu">(++)</span> <span class="ot">:</span> <span class="dt">Tafra</span> n as <span class="ot">-&gt;</span> <span class="dt">Tafra</span> m as <span class="ot">-&gt;</span> <span class="dt">Tafra</span> (plus n m) as</a>
+<a class="sourceLine" id="cb19-11" data-line-number="11">  [] <span class="fu">++</span> [] <span class="fu">=</span> []</a>
+<a class="sourceLine" id="cb19-12" data-line-number="12">  (topFirst <span class="ot">::</span> topRest) <span class="fu">++</span> (botFirst <span class="ot">::</span> botRest) <span class="fu">=</span></a>
+<a class="sourceLine" id="cb19-13" data-line-number="13">    <span class="dt">Vect</span><span class="fu">.</span>(<span class="fu">++</span>) topFirst botFirst <span class="ot">::</span> topRest <span class="fu">++</span> botRest</a>
+<a class="sourceLine" id="cb19-14" data-line-number="14"></a>
+<a class="sourceLine" id="cb19-15" data-line-number="15">  <span class="co">-- we can concatenate tafras with different column types but the same row</span></a>
+<a class="sourceLine" id="cb19-16" data-line-number="16">  <span class="co">--   counts &quot;horizontally&quot;</span></a>
+<a class="sourceLine" id="cb19-17" data-line-number="17">  <span class="fu">hcat</span> <span class="ot">:</span> <span class="dt">Tafra</span> n as <span class="ot">-&gt;</span> <span class="dt">Tafra</span> n bs <span class="ot">-&gt;</span> <span class="dt">Tafra</span> n (as <span class="fu">++</span> bs)</a>
+<a class="sourceLine" id="cb19-18" data-line-number="18">  hcat [] y <span class="fu">=</span> y</a>
+<a class="sourceLine" id="cb19-19" data-line-number="19">  hcat (x <span class="ot">::</span> xs) y <span class="fu">=</span> x <span class="ot">::</span> hcat xs y</a>
+<a class="sourceLine" id="cb19-20" data-line-number="20"></a>
+<a class="sourceLine" id="cb19-21" data-line-number="21">  <span class="co">-- indexing by columns is simple, and returns a column vector</span></a>
+<a class="sourceLine" id="cb19-22" data-line-number="22">  <span class="fu">index</span> <span class="ot">:</span> {n<span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-23" data-line-number="23">          {as <span class="ot">:</span> <span class="dt">Vect</span> n <span class="dt">Type</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-24" data-line-number="24">          (i <span class="ot">:</span> <span class="dt">Fin</span> n) <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-25" data-line-number="25">          <span class="dt">Tafra</span> m as <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-26" data-line-number="26">          <span class="dt">Vect</span> m (index i as)</a>
+<a class="sourceLine" id="cb19-27" data-line-number="27">  index <span class="dt">FZ</span> [] <span class="kw">impossible</span></a>
+<a class="sourceLine" id="cb19-28" data-line-number="28">  index (<span class="dt">FS</span> <span class="fu">_</span>) [] <span class="kw">impossible</span></a>
+<a class="sourceLine" id="cb19-29" data-line-number="29">  index <span class="dt">FZ</span> (x <span class="ot">::</span> <span class="fu">_</span>) <span class="fu">=</span> x</a>
+<a class="sourceLine" id="cb19-30" data-line-number="30">  index (<span class="dt">FS</span> i) (<span class="fu">_</span> <span class="ot">::</span> xs) <span class="fu">=</span> index i xs</a>
+<a class="sourceLine" id="cb19-31" data-line-number="31"></a>
+<a class="sourceLine" id="cb19-32" data-line-number="32">  <span class="co">-- indexing by rows is trickier - we have to return a heterogeneous &quot;tuple&quot;</span></a>
+<a class="sourceLine" id="cb19-33" data-line-number="33">  <span class="fu">rindex</span> <span class="ot">:</span> <span class="dt">Fin</span> n <span class="ot">-&gt;</span> <span class="dt">Tafra</span> n as <span class="ot">-&gt;</span> <span class="dt">HVect</span> as</a>
+<a class="sourceLine" id="cb19-34" data-line-number="34">  rindex <span class="fu">_</span> [] <span class="fu">=</span> []</a>
+<a class="sourceLine" id="cb19-35" data-line-number="35">  rindex n (x <span class="ot">::</span> xs) <span class="fu">=</span> index n x <span class="ot">::</span> rindex n xs</a>
+<a class="sourceLine" id="cb19-36" data-line-number="36"></a>
+<a class="sourceLine" id="cb19-37" data-line-number="37">  <span class="co">-- we can also &quot;slice&quot; by multiple row or column indices</span></a>
+<a class="sourceLine" id="cb19-38" data-line-number="38">  <span class="co">-- we&#39;ll do this a little inefficiently</span></a>
+<a class="sourceLine" id="cb19-39" data-line-number="39"></a>
+<a class="sourceLine" id="cb19-40" data-line-number="40">  <span class="co">-- &quot;column&quot; slices</span></a>
+<a class="sourceLine" id="cb19-41" data-line-number="41">  <span class="fu">slice</span> <span class="ot">:</span> {n <span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-42" data-line-number="42">          {as <span class="ot">:</span> <span class="dt">Vect</span> n <span class="dt">Type</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-43" data-line-number="43">          (cols <span class="ot">:</span> <span class="dt">Vect</span> k (<span class="dt">Fin</span> n)) <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-44" data-line-number="44">          <span class="dt">Tafra</span> m as <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-45" data-line-number="45">          <span class="dt">Tafra</span> m (vslice cols as)</a>
+<a class="sourceLine" id="cb19-46" data-line-number="46">  slice [] <span class="fu">_</span> <span class="fu">=</span> []</a>
+<a class="sourceLine" id="cb19-47" data-line-number="47">  slice (i <span class="ot">::</span> is) xs <span class="fu">=</span> index i xs <span class="ot">::</span> slice is xs</a>
+<a class="sourceLine" id="cb19-48" data-line-number="48"></a>
+<a class="sourceLine" id="cb19-49" data-line-number="49">  <span class="co">-- &quot;row&quot; slices</span></a>
+<a class="sourceLine" id="cb19-50" data-line-number="50">  <span class="fu">rslice</span> <span class="ot">:</span> {n <span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-51" data-line-number="51">           (rows <span class="ot">:</span> <span class="dt">Vect</span> k (<span class="dt">Fin</span> n)) <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-52" data-line-number="52">           <span class="dt">Tafra</span> n as <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-53" data-line-number="53">           <span class="dt">Tafra</span> k as</a>
+<a class="sourceLine" id="cb19-54" data-line-number="54">  rslice <span class="fu">_</span> [] <span class="fu">=</span> []</a>
+<a class="sourceLine" id="cb19-55" data-line-number="55">  rslice [] (<span class="fu">_</span> <span class="ot">::</span> xs) <span class="fu">=</span> [] <span class="ot">::</span> rslice [] xs</a>
+<a class="sourceLine" id="cb19-56" data-line-number="56">  rslice is (x <span class="ot">::</span> xs) <span class="fu">=</span> vslice is x <span class="ot">::</span> rslice is xs</a>
+<a class="sourceLine" id="cb19-57" data-line-number="57"></a>
+<a class="sourceLine" id="cb19-58" data-line-number="58">  <span class="co">-- just the first row</span></a>
+<a class="sourceLine" id="cb19-59" data-line-number="59">  <span class="fu">rhead</span> <span class="ot">:</span> <span class="dt">Tafra</span> (<span class="dt">S</span> n) as <span class="ot">-&gt;</span> <span class="dt">HVect</span> as</a>
+<a class="sourceLine" id="cb19-60" data-line-number="60">  rhead [] <span class="fu">=</span> []</a>
+<a class="sourceLine" id="cb19-61" data-line-number="61">  rhead ((x <span class="ot">::</span> <span class="fu">_</span>) <span class="ot">::</span> ys) <span class="fu">=</span> x <span class="ot">::</span> rhead ys</a>
+<a class="sourceLine" id="cb19-62" data-line-number="62"></a>
+<a class="sourceLine" id="cb19-63" data-line-number="63">  <span class="co">-- all rows but the first</span></a>
+<a class="sourceLine" id="cb19-64" data-line-number="64">  <span class="fu">rtail</span> <span class="ot">:</span> <span class="dt">Tafra</span> (<span class="dt">S</span> n) as <span class="ot">-&gt;</span> <span class="dt">Tafra</span> n as</a>
+<a class="sourceLine" id="cb19-65" data-line-number="65">  rtail [] <span class="fu">=</span> []</a>
+<a class="sourceLine" id="cb19-66" data-line-number="66">  rtail ((<span class="fu">_</span> <span class="ot">::</span> xs) <span class="ot">::</span> ys) <span class="fu">=</span> xs <span class="ot">::</span> rtail ys</a>
+<a class="sourceLine" id="cb19-67" data-line-number="67"></a>
+<a class="sourceLine" id="cb19-68" data-line-number="68">  <span class="co">-- combine the &quot;head&quot; and the &quot;tail&quot; (we&#39;ll need this to</span></a>
+<a class="sourceLine" id="cb19-69" data-line-number="69">  <span class="co">--   correctly type &quot;group by&quot;</span></a>
+<a class="sourceLine" id="cb19-70" data-line-number="70">  <span class="fu">rcons</span> <span class="ot">:</span> <span class="dt">HVect</span> as <span class="ot">-&gt;</span> <span class="dt">Tafra</span> n as <span class="ot">-&gt;</span> <span class="dt">Tafra</span> (<span class="dt">S</span> n) as</a>
+<a class="sourceLine" id="cb19-71" data-line-number="71">  rcons [] [] <span class="fu">=</span> []</a>
+<a class="sourceLine" id="cb19-72" data-line-number="72">  rcons (x <span class="ot">::</span> xs) (r <span class="ot">::</span> rs) <span class="fu">=</span> (x <span class="ot">::</span> r) <span class="ot">::</span> rcons xs rs</a>
+<a class="sourceLine" id="cb19-73" data-line-number="73"></a>
+<a class="sourceLine" id="cb19-74" data-line-number="74">  <span class="co">-- transpose to a row-oriented representation</span></a>
+<a class="sourceLine" id="cb19-75" data-line-number="75">  <span class="fu">transpose</span> <span class="ot">:</span> {n <span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span> <span class="dt">Tafra</span> n as <span class="ot">-&gt;</span> <span class="dt">Vect</span> n (<span class="dt">HVect</span> as)</a>
+<a class="sourceLine" id="cb19-76" data-line-number="76">  transpose {n <span class="fu">=</span> <span class="dt">Z</span>} <span class="fu">_</span> <span class="fu">=</span> []</a>
+<a class="sourceLine" id="cb19-77" data-line-number="77">  transpose {n <span class="fu">=</span> (<span class="dt">S</span> m)} xs <span class="fu">=</span> rhead xs <span class="ot">::</span> transpose (rtail xs)</a>
+<a class="sourceLine" id="cb19-78" data-line-number="78"></a>
+<a class="sourceLine" id="cb19-79" data-line-number="79">  <span class="co">-- rebuild a tafra from a transposed representation</span></a>
+<a class="sourceLine" id="cb19-80" data-line-number="80">  <span class="fu">untranspose</span> <span class="ot">:</span> {n <span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-81" data-line-number="81">                {k <span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-82" data-line-number="82">                {as <span class="ot">:</span> <span class="dt">Vect</span> k <span class="dt">Type</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-83" data-line-number="83">                <span class="dt">Vect</span> n (<span class="dt">HVect</span> as) <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-84" data-line-number="84">                <span class="dt">Tafra</span> n as</a>
+<a class="sourceLine" id="cb19-85" data-line-number="85">  untranspose {n <span class="fu">=</span> <span class="dt">Z</span>} {as <span class="fu">=</span> []} [] <span class="fu">=</span> []</a>
+<a class="sourceLine" id="cb19-86" data-line-number="86">  untranspose {n <span class="fu">=</span> <span class="dt">Z</span>} {as <span class="fu">=</span> (t <span class="ot">::</span> ts)} [] <span class="fu">=</span> [] <span class="ot">::</span> untranspose []</a>
+<a class="sourceLine" id="cb19-87" data-line-number="87">  untranspose {n <span class="fu">=</span> (<span class="dt">S</span> m)} {as <span class="fu">=</span> []} <span class="fu">_</span> <span class="fu">=</span> []</a>
+<a class="sourceLine" id="cb19-88" data-line-number="88">  untranspose {n <span class="fu">=</span> (<span class="dt">S</span> m)} {as <span class="fu">=</span> (t <span class="ot">::</span> ts)} (xs <span class="ot">::</span> yss) <span class="fu">=</span></a>
+<a class="sourceLine" id="cb19-89" data-line-number="89">    (head xs <span class="ot">::</span> map head yss) <span class="ot">::</span> untranspose (tail xs <span class="ot">::</span> map tail yss)</a>
+<a class="sourceLine" id="cb19-90" data-line-number="90"></a>
+<a class="sourceLine" id="cb19-91" data-line-number="91">  <span class="co">-- a zero-row tafra of any type</span></a>
+<a class="sourceLine" id="cb19-92" data-line-number="92">  <span class="fu">empty</span> <span class="ot">:</span> <span class="dt">Tafra</span> <span class="dt">Z</span> as</a>
+<a class="sourceLine" id="cb19-93" data-line-number="93">  empty {as <span class="fu">=</span> []} <span class="fu">=</span> []</a>
+<a class="sourceLine" id="cb19-94" data-line-number="94">  empty {as <span class="fu">=</span> (<span class="fu">_</span> <span class="ot">::</span> <span class="fu">_</span>)} <span class="fu">=</span> [] <span class="ot">::</span> empty</a></code></pre>
+<p>There’s some new syntax here. Recall that previously we mentioned that type variables can be created implicitly. In general, Idris will create implicit arguments whenever a previously unmentioned lowercase name appears in a type signature. The <code>{n : Nat}</code> notation makes these “implicts” explicit, so that we can name and type them ourselves, as well as pattern-match on them. We need this in a few spots to correctly type <code>Tafra</code> functions.</p>
+<p>Let’s create a couple of example tafrae, and interact with them:</p>
+<pre class="sourceCode idris" id="cb20"><code class="sourceCode idris"><a class="sourceLine" id="cb20-1" data-line-number="1"><span class="fu">someData</span> <span class="ot">:</span> <span class="dt">Tafra</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>))) [<span class="dt">Double</span>, <span class="dt">Bool</span>, <span class="dt">List</span> <span class="dt">String</span>]</a>
+<a class="sourceLine" id="cb20-2" data-line-number="2">someData <span class="fu">=</span></a>
+<a class="sourceLine" id="cb20-3" data-line-number="3">  [ [<span class="dv">23</span><span class="fu">.</span><span class="dv">4</span>, <span class="dv">45</span><span class="fu">.</span><span class="dv">6</span>, <span class="dv">78</span><span class="fu">.</span><span class="dv">9</span>]</a>
+<a class="sourceLine" id="cb20-4" data-line-number="4">  , [<span class="dt">True</span>, <span class="dt">False</span>, <span class="dt">True</span>]</a>
+<a class="sourceLine" id="cb20-5" data-line-number="5">  , [ [<span class="st">&quot;yo&quot;</span>, <span class="st">&quot;dawg&quot;</span>]</a>
+<a class="sourceLine" id="cb20-6" data-line-number="6">    , [<span class="st">&quot;i heard you&quot;</span>, <span class="st">&quot;like structures&quot;</span>]</a>
+<a class="sourceLine" id="cb20-7" data-line-number="7">    , [<span class="st">&quot;so i put structures in your structures&quot;</span>]</a>
+<a class="sourceLine" id="cb20-8" data-line-number="8">    ]</a>
+<a class="sourceLine" id="cb20-9" data-line-number="9">  ]</a>
+<a class="sourceLine" id="cb20-10" data-line-number="10"></a>
+<a class="sourceLine" id="cb20-11" data-line-number="11"><span class="fu">otherData</span> <span class="ot">:</span> <span class="dt">Tafra</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>)) [<span class="dt">Int</span>, <span class="dt">String</span>]</a>
+<a class="sourceLine" id="cb20-12" data-line-number="12">otherData <span class="fu">=</span></a>
+<a class="sourceLine" id="cb20-13" data-line-number="13">  [ [<span class="dv">99</span>, <span class="dv">45</span>]</a>
+<a class="sourceLine" id="cb20-14" data-line-number="14">  , [<span class="st">&quot;some&quot;</span>, <span class="st">&quot;text&quot;</span>]</a>
+<a class="sourceLine" id="cb20-15" data-line-number="15">  ]</a></code></pre>
+<p>Indexing is possible, and checked, by column or row index. A column is a <code>Vect</code> and a row is an <code>HVect</code>.</p>
+<pre class="sourceCode idris" id="cb21"><code class="sourceCode idris"><a class="sourceLine" id="cb21-1" data-line-number="1"><span class="fu">*</span>tafra<span class="fu">&gt;</span> index <span class="dt">FZ</span> someData</a>
+<a class="sourceLine" id="cb21-2" data-line-number="2">[<span class="dv">23</span><span class="fu">.</span><span class="dv">4</span>, <span class="dv">45</span><span class="fu">.</span><span class="dv">6</span>, <span class="dv">78</span><span class="fu">.</span><span class="dv">9</span>] <span class="ot">:</span> <span class="dt">Vect</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>))) <span class="dt">Double</span></a>
+<a class="sourceLine" id="cb21-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb21-4" data-line-number="4"><span class="fu">*</span>tafra<span class="fu">&gt;</span> rindex <span class="dt">FZ</span> someData</a>
+<a class="sourceLine" id="cb21-5" data-line-number="5">[<span class="dv">23</span><span class="fu">.</span><span class="dv">4</span>, <span class="dt">True</span>, [<span class="st">&quot;yo&quot;</span>, <span class="st">&quot;dawg&quot;</span>]] <span class="ot">:</span> <span class="dt">HVect</span> [<span class="dt">Double</span>, <span class="dt">Bool</span>, <span class="dt">List</span> <span class="dt">String</span>]</a>
+<a class="sourceLine" id="cb21-6" data-line-number="6"></a>
+<a class="sourceLine" id="cb21-7" data-line-number="7"><span class="fu">*</span>tafra<span class="fu">&gt;</span> rindex (<span class="dt">FS</span> (<span class="dt">FS</span> <span class="dt">FZ</span>)) otherData</a>
+<a class="sourceLine" id="cb21-8" data-line-number="8">(input)<span class="ot">:</span><span class="dv">1</span><span class="ot">:</span><span class="dv">1-29</span><span class="ot">:</span><span class="dt">When</span> checking an application <span class="kw">of</span> function <span class="dt">Main</span><span class="fu">.</span><span class="dt">Tafra</span><span class="fu">.</span>rindex<span class="ot">:</span></a>
+<a class="sourceLine" id="cb21-9" data-line-number="9">        <span class="dt">Type</span> mismatch between</a>
+<a class="sourceLine" id="cb21-10" data-line-number="10">                <span class="dt">Tafra</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>)) [<span class="dt">Int</span>, <span class="dt">String</span>] (<span class="dt">Type</span> <span class="kw">of</span> otherData)</a>
+<a class="sourceLine" id="cb21-11" data-line-number="11">        and</a>
+<a class="sourceLine" id="cb21-12" data-line-number="12">                <span class="dt">Tafra</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> n))) as (<span class="dt">Expected</span> type)</a>
+<a class="sourceLine" id="cb21-13" data-line-number="13"></a>
+<a class="sourceLine" id="cb21-14" data-line-number="14">        <span class="dt">Specifically</span><span class="ot">:</span></a>
+<a class="sourceLine" id="cb21-15" data-line-number="15">                <span class="dt">Type</span> mismatch between</a>
+<a class="sourceLine" id="cb21-16" data-line-number="16">                        <span class="dt">Z</span></a>
+<a class="sourceLine" id="cb21-17" data-line-number="17">                and</a>
+<a class="sourceLine" id="cb21-18" data-line-number="18">                        <span class="dt">S</span> n</a></code></pre>
+<p>Slicing can be done by rows or by columns, producing sub-tafrae:</p>
+<pre class="sourceCode idris" id="cb22"><code class="sourceCode idris"><a class="sourceLine" id="cb22-1" data-line-number="1"><span class="fu">*</span>tafra<span class="fu">&gt;</span> slice [<span class="dt">FZ</span>, (<span class="dt">FS</span> <span class="dt">FZ</span>)] someData</a>
+<a class="sourceLine" id="cb22-2" data-line-number="2">[[<span class="dv">23</span><span class="fu">.</span><span class="dv">4</span>, <span class="dv">45</span><span class="fu">.</span><span class="dv">6</span>, <span class="dv">78</span><span class="fu">.</span><span class="dv">9</span>], [<span class="dt">True</span>, <span class="dt">False</span>, <span class="dt">True</span>]] <span class="ot">:</span> <span class="dt">Tafra</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>))) [<span class="dt">Double</span>, <span class="dt">Bool</span>]</a>
+<a class="sourceLine" id="cb22-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb22-4" data-line-number="4"><span class="fu">*</span>tafra<span class="fu">&gt;</span> rslice [<span class="dt">FZ</span>, (<span class="dt">FS</span> (<span class="dt">FS</span> <span class="dt">FZ</span>))] someData</a>
+<a class="sourceLine" id="cb22-5" data-line-number="5">[[<span class="dv">23</span><span class="fu">.</span><span class="dv">4</span>, <span class="dv">78</span><span class="fu">.</span><span class="dv">9</span>],</a>
+<a class="sourceLine" id="cb22-6" data-line-number="6"> [<span class="dt">True</span>, <span class="dt">True</span>],</a>
+<a class="sourceLine" id="cb22-7" data-line-number="7"> [[<span class="st">&quot;yo&quot;</span>, <span class="st">&quot;dawg&quot;</span>], [<span class="st">&quot;so i put structures in your structures&quot;</span>]]]</a>
+<a class="sourceLine" id="cb22-8" data-line-number="8">   <span class="ot">:</span> <span class="dt">Tafra</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>)) [<span class="dt">Double</span>, <span class="dt">Bool</span>, <span class="dt">List</span> <span class="dt">String</span>]</a></code></pre>
+<p>We have <code>rhead</code> (first row) and <code>rtail</code> (all-but-first-row) functions (this is the “functional programming” meaning for these names, not the “pandas” meaning), as well as <code>rcons</code> which inverts the <code>rhead</code>/<code>rtail</code> transformation.</p>
+<pre class="sourceCode idris" id="cb23"><code class="sourceCode idris"><a class="sourceLine" id="cb23-1" data-line-number="1"><span class="fu">*</span>tafra<span class="fu">&gt;</span> rhead otherData</a>
+<a class="sourceLine" id="cb23-2" data-line-number="2">[<span class="dv">99</span>, <span class="st">&quot;some&quot;</span>] <span class="ot">:</span> <span class="dt">HVect</span> [<span class="dt">Int</span>, <span class="dt">String</span>]</a>
+<a class="sourceLine" id="cb23-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb23-4" data-line-number="4"><span class="fu">*</span>tafra<span class="fu">&gt;</span> rtail otherData</a>
+<a class="sourceLine" id="cb23-5" data-line-number="5">[[<span class="dv">45</span>], [<span class="st">&quot;text&quot;</span>]] <span class="ot">:</span> <span class="dt">Tafra</span> (<span class="dt">S</span> <span class="dt">Z</span>) [<span class="dt">Int</span>, <span class="dt">String</span>]</a>
+<a class="sourceLine" id="cb23-6" data-line-number="6"></a>
+<a class="sourceLine" id="cb23-7" data-line-number="7"><span class="fu">*</span>tafra<span class="fu">&gt;</span> rcons (rhead otherData) (rtail otherData)</a>
+<a class="sourceLine" id="cb23-8" data-line-number="8">[[<span class="dv">99</span>, <span class="dv">45</span>], [<span class="st">&quot;some&quot;</span>, <span class="st">&quot;text&quot;</span>]] <span class="ot">:</span> <span class="dt">Tafra</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>)) [<span class="dt">Int</span>, <span class="dt">String</span>]</a></code></pre>
+<p>We can convert to and from row-major (<code>Vect</code> of <code>HVect</code>) representation with <code>transpose</code> and <code>untranspose</code>, which are probably not ideally named (<code>it</code> is a handy REPL-only variable referring to the value of the last evaluated expression, like <code>_</code> in the Python REPL):</p>
+<pre class="sourceCode idris" id="cb24"><code class="sourceCode idris"><a class="sourceLine" id="cb24-1" data-line-number="1"><span class="fu">*</span>tafra<span class="fu">&gt;</span> transpose otherData</a>
+<a class="sourceLine" id="cb24-2" data-line-number="2">[[<span class="dv">99</span>, <span class="st">&quot;some&quot;</span>], [<span class="dv">45</span>, <span class="st">&quot;text&quot;</span>]] <span class="ot">:</span> <span class="dt">Vect</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>)) (<span class="dt">HVect</span> [<span class="dt">Int</span>, <span class="dt">String</span>])</a>
+<a class="sourceLine" id="cb24-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb24-4" data-line-number="4"><span class="fu">*</span>tafra<span class="fu">&gt;</span> untranspose it</a>
+<a class="sourceLine" id="cb24-5" data-line-number="5">[[<span class="dv">99</span>, <span class="dv">45</span>], [<span class="st">&quot;some&quot;</span>, <span class="st">&quot;text&quot;</span>]] <span class="ot">:</span> <span class="dt">Tafra</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>)) [<span class="dt">Int</span>, <span class="dt">String</span>]</a></code></pre>
+<p>Finally, just like <code>pandas</code>, we can concatenate tafrae either “vertically” (appending rows) or “horizontally” (appending columns), but ours are checked! For vertical concatenation we need identical column types; for horizontally concatenation we need identical row counts.</p>
+<pre class="sourceCode idris" id="cb25"><code class="sourceCode idris"><a class="sourceLine" id="cb25-1" data-line-number="1"><span class="fu">*</span>tafra<span class="fu">&gt;</span> someData <span class="fu">++</span> someData</a>
+<a class="sourceLine" id="cb25-2" data-line-number="2">[[<span class="dv">23</span><span class="fu">.</span><span class="dv">4</span>, <span class="dv">45</span><span class="fu">.</span><span class="dv">6</span>, <span class="dv">78</span><span class="fu">.</span><span class="dv">9</span>, <span class="dv">23</span><span class="fu">.</span><span class="dv">4</span>, <span class="dv">45</span><span class="fu">.</span><span class="dv">6</span>, <span class="dv">78</span><span class="fu">.</span><span class="dv">9</span>],</a>
+<a class="sourceLine" id="cb25-3" data-line-number="3"> [<span class="dt">True</span>, <span class="dt">False</span>, <span class="dt">True</span>, <span class="dt">True</span>, <span class="dt">False</span>, <span class="dt">True</span>],</a>
+<a class="sourceLine" id="cb25-4" data-line-number="4"> [[<span class="st">&quot;yo&quot;</span>, <span class="st">&quot;dawg&quot;</span>],</a>
+<a class="sourceLine" id="cb25-5" data-line-number="5">  [<span class="st">&quot;i heard you&quot;</span>, <span class="st">&quot;like structures&quot;</span>],</a>
+<a class="sourceLine" id="cb25-6" data-line-number="6">  [<span class="st">&quot;so i put structures in your structures&quot;</span>],</a>
+<a class="sourceLine" id="cb25-7" data-line-number="7">  [<span class="st">&quot;yo&quot;</span>, <span class="st">&quot;dawg&quot;</span>],</a>
+<a class="sourceLine" id="cb25-8" data-line-number="8">  [<span class="st">&quot;i heard you&quot;</span>, <span class="st">&quot;like structures&quot;</span>],</a>
+<a class="sourceLine" id="cb25-9" data-line-number="9">  [<span class="st">&quot;so i put structures in your structures&quot;</span>]]] <span class="ot">:</span> <span class="dt">Tafra</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>))))))</a>
+<a class="sourceLine" id="cb25-10" data-line-number="10">                                                       [<span class="dt">Double</span>, <span class="dt">Bool</span>, <span class="dt">List</span> <span class="dt">String</span>]</a>
+<a class="sourceLine" id="cb25-11" data-line-number="11"></a>
+<a class="sourceLine" id="cb25-12" data-line-number="12"><span class="fu">*</span>tafra<span class="fu">&gt;</span> hcat otherData otherData</a>
+<a class="sourceLine" id="cb25-13" data-line-number="13">[[<span class="dv">99</span>, <span class="dv">45</span>], [<span class="st">&quot;some&quot;</span>, <span class="st">&quot;text&quot;</span>], [<span class="dv">99</span>, <span class="dv">45</span>], [<span class="st">&quot;some&quot;</span>, <span class="st">&quot;text&quot;</span>]]</a>
+<a class="sourceLine" id="cb25-14" data-line-number="14">  <span class="ot">:</span> <span class="dt">Tafra</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>)) [<span class="dt">Int</span>, <span class="dt">String</span>, <span class="dt">Int</span>, <span class="dt">String</span>]</a>
+<a class="sourceLine" id="cb25-15" data-line-number="15"></a>
+<a class="sourceLine" id="cb25-16" data-line-number="16"><span class="fu">*</span>tafra<span class="fu">&gt;</span> someData <span class="fu">++</span> otherData</a>
+<a class="sourceLine" id="cb25-17" data-line-number="17">(input)<span class="ot">:</span><span class="dv">1</span><span class="ot">:</span><span class="dv">1-29</span><span class="ot">:</span><span class="dt">When</span> checking an application <span class="kw">of</span> function <span class="dt">Main</span><span class="fu">.</span><span class="dt">Tafra</span><span class="fu">.++:</span></a>
+<a class="sourceLine" id="cb25-18" data-line-number="18">        <span class="dt">Type</span> mismatch between</a>
+<a class="sourceLine" id="cb25-19" data-line-number="19">                <span class="dt">Tafra</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>)) [<span class="dt">Int</span>, <span class="dt">String</span>] (<span class="dt">Type</span> <span class="kw">of</span> otherData)</a>
+<a class="sourceLine" id="cb25-20" data-line-number="20">        and</a>
+<a class="sourceLine" id="cb25-21" data-line-number="21">                <span class="dt">Tafra</span> m [<span class="dt">Double</span>, <span class="dt">Bool</span>, <span class="dt">List</span> <span class="dt">String</span>] (<span class="dt">Expected</span> type)</a>
+<a class="sourceLine" id="cb25-22" data-line-number="22"></a>
+<a class="sourceLine" id="cb25-23" data-line-number="23">        <span class="dt">Specifically</span><span class="ot">:</span></a>
+<a class="sourceLine" id="cb25-24" data-line-number="24">                <span class="dt">Type</span> mismatch between</a>
+<a class="sourceLine" id="cb25-25" data-line-number="25">                        <span class="dt">Z</span></a>
+<a class="sourceLine" id="cb25-26" data-line-number="26">                and</a>
+<a class="sourceLine" id="cb25-27" data-line-number="27">                        <span class="dt">S</span> <span class="dt">Z</span></a>
+<a class="sourceLine" id="cb25-28" data-line-number="28"></a>
+<a class="sourceLine" id="cb25-29" data-line-number="29"><span class="fu">*</span>tafra<span class="fu">&gt;</span> hcat someData otherData</a>
+<a class="sourceLine" id="cb25-30" data-line-number="30">(input)<span class="ot">:</span><span class="dv">1</span><span class="ot">:</span><span class="dv">1-23</span><span class="ot">:</span><span class="dt">When</span> checking an application <span class="kw">of</span> function <span class="dt">Main</span><span class="fu">.</span><span class="dt">Tafra</span><span class="fu">.</span>hcat<span class="ot">:</span></a>
+<a class="sourceLine" id="cb25-31" data-line-number="31">        <span class="dt">Type</span> mismatch between</a>
+<a class="sourceLine" id="cb25-32" data-line-number="32">                <span class="dt">Tafra</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>)) [<span class="dt">Int</span>, <span class="dt">String</span>] (<span class="dt">Type</span> <span class="kw">of</span> otherData)</a>
+<a class="sourceLine" id="cb25-33" data-line-number="33">        and</a>
+<a class="sourceLine" id="cb25-34" data-line-number="34">                <span class="dt">Tafra</span> (<span class="dt">S</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>))) bs (<span class="dt">Expected</span> type)</a>
+<a class="sourceLine" id="cb25-35" data-line-number="35"></a>
+<a class="sourceLine" id="cb25-36" data-line-number="36">        <span class="dt">Specifically</span><span class="ot">:</span></a>
+<a class="sourceLine" id="cb25-37" data-line-number="37">                <span class="dt">Type</span> mismatch between</a>
+<a class="sourceLine" id="cb25-38" data-line-number="38">                        <span class="dt">Z</span></a>
+<a class="sourceLine" id="cb25-39" data-line-number="39">                and</a>
+<a class="sourceLine" id="cb25-40" data-line-number="40">                        <span class="dt">S</span> <span class="dt">Z</span></a></code></pre>
+<p>We’ve already achieved much of what we set out to do. We now have a statically checked data frame implementation which correctly models a heterogeneous collection of same-length homogeneous columns.</p>
+<h3 class="title">Typing Group-by</h3>
+<p>As a final goal, let’s answer the question posed previously: what is the correct (or at least <em>a</em> correct) type for a SQL-inspired <code>group by</code> operation?</p>
+<p>Just like we did in Python, we’ll execute our “group by” by accumulating rows sharing a unique tuples of “group-by values” into an associative collection. We don’t have easy access to a hash table implementation, so we’ll use a list of <code>(key, value)</code> tuples as a purely functional implementation of associative arrays.</p>
+<p>On the way to “group by”, we’ll define helper functions to collect tuples by unique value; <code>rowsByUnique</code> could be useful on its own but also forms a solid building block for <code>groupBy</code>.</p>
+<pre class="sourceCode idris" id="cb26"><code class="sourceCode idris"><a class="sourceLine" id="cb26-1" data-line-number="1"><span class="co">-- instead of maps, we&#39;ll use &quot;association lists&quot; for associative lookup</span></a>
+<a class="sourceLine" id="cb26-2" data-line-number="2"><span class="co">-- the prelude helpfully provides</span></a>
+<a class="sourceLine" id="cb26-3" data-line-number="3"><span class="co">-- lookup : Eq a =&gt; a -&gt; List (a, b) -&gt; Maybe b</span></a>
+<a class="sourceLine" id="cb26-4" data-line-number="4"><span class="co">-- we&#39;ll define a helpful type synonym</span></a>
+<a class="sourceLine" id="cb26-5" data-line-number="5"></a>
+<a class="sourceLine" id="cb26-6" data-line-number="6"><span class="dt">Map</span> <span class="ot">:</span> <span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span></a>
+<a class="sourceLine" id="cb26-7" data-line-number="7"><span class="dt">Map</span> k v <span class="fu">=</span> <span class="dt">List</span> (k, v)</a>
+<a class="sourceLine" id="cb26-8" data-line-number="8"></a>
+<a class="sourceLine" id="cb26-9" data-line-number="9"><span class="co">-- and some additional helpers</span></a>
+<a class="sourceLine" id="cb26-10" data-line-number="10"><span class="fu">insert</span> <span class="ot">:</span> <span class="dt">Eq</span> k <span class="ot">=&gt;</span> k <span class="ot">-&gt;</span> v <span class="ot">-&gt;</span> <span class="dt">Map</span> k v <span class="ot">-&gt;</span> <span class="dt">Map</span> k v</a>
+<a class="sourceLine" id="cb26-11" data-line-number="11">insert k v [] <span class="fu">=</span> [(k, v)]</a>
+<a class="sourceLine" id="cb26-12" data-line-number="12">insert k v (x<span class="fu">@</span>(k&#39;, <span class="fu">_</span>) <span class="ot">::</span> xs) <span class="fu">=</span></a>
+<a class="sourceLine" id="cb26-13" data-line-number="13">  <span class="kw">if</span> k <span class="fu">==</span> k&#39;</a>
+<a class="sourceLine" id="cb26-14" data-line-number="14">     <span class="kw">then</span> (k, v) <span class="ot">::</span> xs</a>
+<a class="sourceLine" id="cb26-15" data-line-number="15">     <span class="kw">else</span> <span class="fu">x</span> <span class="ot">::</span> insert k v xs</a>
+<a class="sourceLine" id="cb26-16" data-line-number="16"></a>
+<a class="sourceLine" id="cb26-17" data-line-number="17"><span class="co">-- we&#39;re almost ready to write &quot;group by&quot;</span></a>
+<a class="sourceLine" id="cb26-18" data-line-number="18"><span class="co">-- first, let&#39;s prove we can collect rows by unique combination of group-by</span></a>
+<a class="sourceLine" id="cb26-19" data-line-number="19"><span class="co">--   column values</span></a>
+<a class="sourceLine" id="cb26-20" data-line-number="20"></a>
+<a class="sourceLine" id="cb26-21" data-line-number="21"><span class="co">-- an &quot;accumulating&quot; function we&#39;ll use to collect rows by unique combination</span></a>
+<a class="sourceLine" id="cb26-22" data-line-number="22"><span class="kw">private</span></a>
+<a class="sourceLine" id="cb26-23" data-line-number="23"><span class="fu">accumRows</span> <span class="ot">:</span> <span class="dt">Eq</span> k <span class="ot">=&gt;</span></a>
+<a class="sourceLine" id="cb26-24" data-line-number="24">            <span class="dt">Map</span> k (<span class="dt">List</span> v) <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb26-25" data-line-number="25">            <span class="dt">Vect</span> n (k, v) <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb26-26" data-line-number="26">            <span class="dt">Map</span> k (<span class="dt">List</span> v)</a>
+<a class="sourceLine" id="cb26-27" data-line-number="27">accumRows map [] <span class="fu">=</span> map</a>
+<a class="sourceLine" id="cb26-28" data-line-number="28">accumRows map ((b, g) <span class="ot">::</span> rest) <span class="fu">=</span> <span class="kw">case</span> lookup b map <span class="kw">of</span></a>
+<a class="sourceLine" id="cb26-29" data-line-number="29">  <span class="dt">Nothing</span> <span class="ot">=&gt;</span> accumRows (insert b [g] map) rest</a>
+<a class="sourceLine" id="cb26-30" data-line-number="30">  <span class="co">-- for performance, we&#39;re going to build these &quot;backward&quot;</span></a>
+<a class="sourceLine" id="cb26-31" data-line-number="31">  (<span class="dt">Just</span> xs) <span class="ot">=&gt;</span> accumRows (insert b (g<span class="ot">::</span>xs) map) rest</a>
+<a class="sourceLine" id="cb26-32" data-line-number="32"></a>
+<a class="sourceLine" id="cb26-33" data-line-number="33"><span class="co">-- this is also the only example I have ever seen of explicitly passing</span></a>
+<a class="sourceLine" id="cb26-34" data-line-number="34"><span class="co">--   a &quot;locally named&quot; interface implementation</span></a>
+<a class="sourceLine" id="cb26-35" data-line-number="35"><span class="fu">rowsByUnique</span> <span class="ot">:</span> (is <span class="ot">:</span> <span class="dt">Vect</span> groups (<span class="dt">Fin</span> cols)) <span class="ot">-&gt;</span> <span class="co">-- indices of group-by columns</span></a>
+<a class="sourceLine" id="cb26-36" data-line-number="36">               (js <span class="ot">:</span> <span class="dt">Vect</span> aggs (<span class="dt">Fin</span> cols)) <span class="ot">-&gt;</span> <span class="co">-- indices of aggregated-over columns</span></a>
+<a class="sourceLine" id="cb26-37" data-line-number="37">               {<span class="kw">auto</span> prf<span class="ot">:</span> <span class="dt">Eq</span> (<span class="dt">HVect</span> (vslice is as))} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb26-38" data-line-number="38">               <span class="dt">Tafra</span> rows as <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb26-39" data-line-number="39">               <span class="dt">Map</span> (<span class="dt">HVect</span> (vslice is as)) (<span class="dt">List</span> (<span class="dt">HVect</span> (vslice js as)))</a>
+<a class="sourceLine" id="cb26-40" data-line-number="40">rowsByUnique {prf} is js xs <span class="fu">=</span></a>
+<a class="sourceLine" id="cb26-41" data-line-number="41">  accumRows <span class="fu">@</span>{prf} [] (zip (transpose (slice is xs)) (transpose (slice js xs)))</a>
+<a class="sourceLine" id="cb26-42" data-line-number="42"></a>
+<a class="sourceLine" id="cb26-43" data-line-number="43"><span class="co">-- ok, let&#39;s type group by</span></a>
+<a class="sourceLine" id="cb26-44" data-line-number="44"><span class="fu">groupBy</span> <span class="ot">:</span> {cols <span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb26-45" data-line-number="45">          {rows <span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb26-46" data-line-number="46">          {as <span class="ot">:</span> <span class="dt">Vect</span> cols <span class="dt">Type</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb26-47" data-line-number="47">          {groups <span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb26-48" data-line-number="48">          {aggs <span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb26-49" data-line-number="49">          <span class="co">-- indices of group-by columns</span></a>
+<a class="sourceLine" id="cb26-50" data-line-number="50">          (is <span class="ot">:</span> <span class="dt">Vect</span> groups (<span class="dt">Fin</span> cols)) <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb26-51" data-line-number="51">          <span class="co">-- indices of aggregated-over columns</span></a>
+<a class="sourceLine" id="cb26-52" data-line-number="52">          (js <span class="ot">:</span> <span class="dt">Vect</span> aggs (<span class="dt">Fin</span> cols)) <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb26-53" data-line-number="53">          <span class="co">-- aggregation function</span></a>
+<a class="sourceLine" id="cb26-54" data-line-number="54">          (aggFn <span class="ot">:</span> <span class="dt">List</span> (<span class="dt">HVect</span> (vslice js as)) <span class="ot">-&gt;</span> <span class="dt">HVect</span> bs) <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb26-55" data-line-number="55">          <span class="co">-- a proof that group-by columns can be compared for equality</span></a>
+<a class="sourceLine" id="cb26-56" data-line-number="56">          <span class="co">--   (automatically found by compiler)</span></a>
+<a class="sourceLine" id="cb26-57" data-line-number="57">          {<span class="kw">auto</span> prf<span class="ot">:</span> <span class="dt">Eq</span> (<span class="dt">HVect</span> (vslice is as))} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb26-58" data-line-number="58">          <span class="co">-- data frame to group-by</span></a>
+<a class="sourceLine" id="cb26-59" data-line-number="59">          <span class="dt">Tafra</span> rows as <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb26-60" data-line-number="60">          <span class="co">-- result type: an existentially quantified tafra of some</span></a>
+<a class="sourceLine" id="cb26-61" data-line-number="61">          <span class="co">--   row count, with columns from the group-by columns and</span></a>
+<a class="sourceLine" id="cb26-62" data-line-number="62">          <span class="co">--   the result of the aggregation function</span></a>
+<a class="sourceLine" id="cb26-63" data-line-number="63">          (k <span class="ot">:</span> <span class="dt">Nat</span> <span class="fu">**</span> <span class="dt">Tafra</span> k (vslice is as <span class="fu">++</span> bs))</a>
+<a class="sourceLine" id="cb26-64" data-line-number="64">groupBy is js fn xs <span class="fu">=</span> applyAggregation fn (rowsByUnique is js xs) <span class="kw">where</span></a>
+<a class="sourceLine" id="cb26-65" data-line-number="65">  <span class="fu">applyAggregation</span> <span class="ot">:</span> (<span class="dt">List</span> (<span class="dt">HVect</span> gs) <span class="ot">-&gt;</span> <span class="dt">HVect</span> rs) <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb26-66" data-line-number="66">                     <span class="dt">Map</span> (<span class="dt">HVect</span> as) (<span class="dt">List</span> (<span class="dt">HVect</span> gs)) <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb26-67" data-line-number="67">                     (k <span class="ot">:</span> <span class="dt">Nat</span> <span class="fu">**</span> <span class="dt">Tafra</span> k (as <span class="fu">++</span> rs))</a>
+<a class="sourceLine" id="cb26-68" data-line-number="68">  applyAggregation f [] <span class="fu">=</span> (<span class="dt">Z</span> <span class="fu">**</span> empty)</a>
+<a class="sourceLine" id="cb26-69" data-line-number="69">  applyAggregation f ((k, rs) <span class="ot">::</span> rest) <span class="kw">with</span> (applyAggregation f rest)</a>
+<a class="sourceLine" id="cb26-70" data-line-number="70">    applyAggregation f ((k, rs) <span class="ot">::</span> <span class="fu">_</span>) <span class="fu">|</span> (n <span class="fu">**</span> restAgg) <span class="fu">=</span></a>
+<a class="sourceLine" id="cb26-71" data-line-number="71">      (<span class="dt">S</span> n <span class="fu">**</span> rcons (k <span class="fu">++</span> f rs) restAgg)</a></code></pre>
+<p>To be fair, that was nearly as exhausting to write as it probably was to read. I take this as a sign that “group by” is a somewhat complicated operation, semantically.</p>
+<p>There’s plenty of bookkeeping of indices and types (and of the constraint that we must be able to do equality comparison on our group-by column values), but there is one interesting new complication which requires us to use another “unusual” feature of our type system. Unlike the operations we implemented previously, there’s not a fixed relationship between the number of rows in a tafra and the number of rows resulting from <code>groupBy</code>.</p>
+<p>The result’s row count is only known at runtime, after we consolidate unique combinations of the grouping columns. To handle this in our type system, we use an <em>existential type</em> in the form of a <em>dependent pair</em>. If polymorphic types correspond to “for all” (universal quantification), existential types correspond to “there exists” (existential quantification). Object-oriented programmers work with existential types every day in the form of interfaces: they promise that “there exists” a value some concrete type fulfilling the interface without statically committing to a given implementation.</p>
+<p>We use an existential to promise that “there exists” some count of rows in the result, and that the result has that many rows, and that we can produce both bundled together in a dependent pair (the <code>(k : Nat ** Tafra k (vslice is as ++ bs))</code> type of our result is a dependent pair type).</p>
+<p>It’s also noteworthy that types can contain function application! We use this to indicate the correspondence between the columns selected for grouping and aggregation, the aggregation function result type, and the column types of the resulting tafra.</p>
+<p>Let’s see <code>groupBy</code> in action. We’ll write the rough equivalent of this SQL:</p>
+<pre class="sourceCode sql" id="cb27"><code class="sourceCode sql"><a class="sourceLine" id="cb27-1" data-line-number="1"><span class="kw">select</span></a>
+<a class="sourceLine" id="cb27-2" data-line-number="2">  col2,</a>
+<a class="sourceLine" id="cb27-3" data-line-number="3">  <span class="kw">join</span>(<span class="st">&#39;</span><span class="ch">\n</span><span class="st">&#39;</span>, str(col1) &amp; <span class="kw">join</span>(<span class="st">&#39; &#39;</span>, col3))</a>
+<a class="sourceLine" id="cb27-4" data-line-number="4"><span class="kw">from</span> someData</a>
+<a class="sourceLine" id="cb27-5" data-line-number="5"><span class="kw">group</span> <span class="kw">by</span> col2</a></code></pre>
+<p>In our system:</p>
+<pre class="sourceCode idris" id="cb28"><code class="sourceCode idris"><a class="sourceLine" id="cb28-1" data-line-number="1"><span class="fu">*</span>tafra<span class="fu">&gt;</span> groupBy</a>
+<a class="sourceLine" id="cb28-2" data-line-number="2">  [<span class="dt">FS</span> <span class="dt">FZ</span>]</a>
+<a class="sourceLine" id="cb28-3" data-line-number="3">  [<span class="dt">FZ</span>, <span class="dt">FS</span> (<span class="dt">FS</span> <span class="dt">FZ</span>)]</a>
+<a class="sourceLine" id="cb28-4" data-line-number="4">  ((<span class="ot">::</span>[]) <span class="fu">.</span> unlines <span class="fu">.</span> map (<span class="fu">\</span>[num, strs] <span class="ot">=&gt;</span> unwords (show num <span class="ot">::</span> strs)))</a>
+<a class="sourceLine" id="cb28-5" data-line-number="5">  someData</a>
+<a class="sourceLine" id="cb28-6" data-line-number="6"></a>
+<a class="sourceLine" id="cb28-7" data-line-number="7">(<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>) <span class="fu">**</span></a>
+<a class="sourceLine" id="cb28-8" data-line-number="8"> [[<span class="dt">True</span>, <span class="dt">False</span>],</a>
+<a class="sourceLine" id="cb28-9" data-line-number="9">  [<span class="st">&quot;78.9 so i put structures in your structures\n23.4 yo dawg\n&quot;</span>,</a>
+<a class="sourceLine" id="cb28-10" data-line-number="10">   <span class="st">&quot;45.6 i heard you like structures\n&quot;</span>]]) <span class="ot">:</span> (k <span class="ot">:</span> <span class="dt">Nat</span> <span class="fu">**</span> <span class="dt">Tafra</span> k [<span class="dt">Bool</span>, <span class="dt">String</span>])</a></code></pre>
+<p>There we have it! We’ve typed <code>groupBy</code>, and it works.</p>
+<h3 class="title">Parting Thoughts</h3>
+<p>That was a lot of work, especially to build the more complex types involved in dynamic operations like “group by”. However, we’ve gained incredible power to statically check the validity of our data manipulation.</p>
+<p>Why is this from “another universe”? Why don’t we see dependent types used for these kinds of systems in practice? I think there are a few reasons: some good, some not.</p>
+<p>Functional programming is still unpopular, although less so than it used to be. The same goes for expressive static type systems. We’re seeing a growing trend of “mainstream” imperative languages adopting features (typeclasses or “traits”, algebraic types and pattern matching, etc.) from this world, but languages like Haskell are still pretty far from mainstream.</p>
+<p>Data science had the poor luck to come of age during the long slow decline of “dynamic typing”, but before the “static typing renaissance” we’re currently living through. As a consequence, key tools like R or <code>pandas</code> are very much products of their times. At the time, given the mainstream or near-mainstream alternatives, the decision wasn’t a bad one. A REPL is very helpful for this sort of work, and they were hard to come by for statically-typed languages.</p>
+<p>A deeper issue is performance. If you were playing close attention, you realized that every data structure we built, from <code>Nat</code> to <code>Vect</code> to <code>Tafra</code>, was an immutable linked list “under the hood”. That’s far from ideal for performance under the best of circumstances, and the kind of code we wrote to slice and manipulate frames was far from the “best-case” scenario for these data structures.</p>
+<p>A few years back I worked on a dependent-typing related project for a client. I spent a lot of time researching prior work on optimizing compilers for these languages, to improve the performance of dependently-typed programs. Even with aggressive “erasure” (e.g. so all those <code>Nat</code> indices don’t have to exist at runtime), performance is at best comparable to a “traditional” functional language—which is to say that performance is poor.</p>
+<p>There are some reasons for optimism, though. For example, <a href="https://github.com/ollef/sixten">Sixten</a> is an experimental functional language with both “unboxed” (read: fewer indirections—the difference between a C array and a Python list, or for that matter a Haskell list) data and dependent function types. There doesn’t appear to be support for the kind of dependent pair types we used in typing <code>groupBy</code>, but it’s a promising start!</p>
+<p>Comparing Idris, say, to Python, Idris probably comes out ahead in performance when considering just the “core language”. However, Python’s data science ecosystem is mostly built on Python wrappers around fast compiled code (C, C++, or Fortran). There’s no reason we couldn’t build the same sort of “layered” system to provide a dependently-typed interface to a fast native data frame library. True, we’d lose some of the “correct by construction” benefits we got while writing our implementation, but with adequate testing we’d still provide the benefits of static checking to our users: that is, assuming we could get them to try and adopt a dependently-typed language.</p>
+<p>Alas, that day is probably quite far off. Or perhaps dependent types are just a stepping stone to, or a detour from, some future approach which manages to combine good performance with static checking and the <em>je ne sais quoi</em> which attracts “average” programmers.</p>
+<p>For now, we’ll just have to live with occasional glimpses through the looking glass into a world that might have been.</p>
+<hr>
+<p>PS: you can find the entire Idris program in one file
+<a href="https://gist.github.com/derrickturk/bb078cd650f5e7e36fe8792b89157576">here</a>.
+
+        <!--#include file="/include/after.html" -->
+    </body>
+</html>
