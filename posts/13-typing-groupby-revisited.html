@@ -680,8 +680,19 @@
 <p>Alas, that day is probably quite far off. Or perhaps dependent types are just a stepping stone to, or a detour from, some future approach which manages to combine good performance with static checking and the <em>je ne sais quoi</em> which attracts “average” programmers.</p>
 <p>For now, we’ll just have to live with occasional glimpses through the looking glass into a world that might have been.</p>
 <hr>
-<p>PS: you can find the entire Idris program in one file
+<p>PS: you can find the entire Idris program in one file (<code>Tafra.idr</code>)
 <a href="https://gist.github.com/derrickturk/bb078cd650f5e7e36fe8792b89157576">here</a>.
+<p>PPS: I threw in a very quick-and-dirty parsing module (<code>TafraParser.idr</code>),
+which will attempt to parse a tafra of a given type (and unknown row count) from
+(not-quite-fully-to-spec) CSV formatted text.
+The point here was not to write a production-grade CSV parser, but rather to
+answer a question we didn't get to address in the code above: how do we handle
+the fact that when we parse data from the outside world, we may know what column
+types to expect, but we have no guarantees about the data being "correct" nor
+about the number of rows.
+The answer, of course, is the combination of existential types (to quantify over
+the statically unknown row count) and option (<code>Maybe</code>) types to
+indicate the possibility of failure during parsing.
 
         <!--#include file="/include/after.html" -->
     </body>
