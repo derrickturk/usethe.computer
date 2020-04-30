@@ -21,7 +21,7 @@ Let me show you how deep the rabbit hole goes.
 
 ### Eats, Shoots, and Leaves
 *Data frames* are an oddity: a data structure ubiquitous in data science but
-relative unknown to ordinary programmers.
+relatively unknown to ordinary programmers.
 I am not sure where they originated, but they go back at least to the early 90s
 via the S statistical programming language.
 I became familiar with them through S's descendent R, which makes heavy use of
