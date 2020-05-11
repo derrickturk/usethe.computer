@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <!--#set var="title" value="XMHell: Handling 38GB of UTF-16 XML with Rust" -->
+        <!--#include file="/include/head.html" -->
+    </head>
+    <body>
+        <!--#include file="/include/before.html" -->
+        <h2 class="title">XMHell: Handling 38GB of UTF-16 XML with Rust</h2>
+        <h3 class="date">2020-05-11</h3>
+
+<p>A couple weekends ago, I found myself with the desire to fetch oil and gas production data for a specific county in New Mexico from the <a href="http://www.emnrd.state.nm.us/OCD/">New Mexico Oil Conservation Division</a> (OCD).</p>
+<p>Fortunately, the OCD provides access to historical well production via an FTP server. I worked out that I needed to download <code>/Public/OCD/OCD Interface v1.1/volumes/wcproduction/wcproduction.zip</code>… and then my fortune ran out.</p>
+<p>The first thing I noticed was the file size. The OCD doesn’t seem to provide a way to query a limited time- or area-based subset of production history data, so we’re stuck with a single zip file for “all of New Mexico since the dawn of time”<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a>. The result is a whopping 712MB ZIP file.</p>
+<p>Here’s where I knew I was in trouble: the only thing inside was a single 38 GB file called <code>wcproduction.xml</code>.</p>
+<h3 class="title">“XML is like violence: when it fails, apply more”</h3>
+<p>XML—the “extensible markup language”. Along with Java’s <code>AbstractBeanFactoryTemplateFactory</code>s, and the entirety of Geocities, XML epitomizes the excesses of the late 90s and early 2000s computing culture.</p>
+<p>No two parsers can ever quite seem to agree on the details, and the verbosity quotient is such that an attempt to “print source” for the average “XHTML” web site circa 2001 would be likely to completely deforest the Amazon. The one thing that can be said in its favor is that it can indeed be used to somewhat faithfully represent a tree (the in-memory hierarchical structure, not the thing we just killed millions of).</p>
+<p>Enough griping, though: the “XML everywhere” wave has long subsided. We’ve got to figure out how to deal with what it left behind. While it’s the most common approach to parsing XML, it’s also clear that loading the entire file into memory is unlikely to work: the workstation I’m writing this on only has 32GB of RAM. Additionally, it doesn’t make sense to build a syntax tree for the entire document when we are only interested in a small subset of the data. The XML world refers to this—here, unworkable—approach as a “DOM parser”, but it’s just the common case of parsing for any formal language—we incrementally construct an in-memory representation (that is, a syntax tree) of an entire document. It works well when we need the entire result and the in-memory representation fits comfortably within our resource budget: for instance, when compiling computer programs from source code, or rendering a web page from HTML.</p>
+<p>Instead, we’ll use a streaming approach (the XML folks call this “SAX”, for reasons I didn’t care enough to research). In this approach, we’ll parse the document incrementally and receive results via an event-based API. This will let us only handle the data we care about, and minimize the amount we need to keep in memory at once.</p>
+<p>For good performance on this “huge” data set, and to leverage an easily-accessible ecosystem of libraries which includes both streaming ZIP archive handling and high-performance streaming XML parsers, we’ll write a data extraction program in the <a href="https://www.rust-lang.org/">Rust</a> programming language.</p>
+<h3 class="title">(Re)Write It In Rust</h3>
+<p><img width="400px" src="/images/resf.png"></p>
+<p>I’m not going to belabor the reasons Rust is exciting here. It’s a statically-typed, compiled language with a nice mix of performance and control, expressiveness, and safety. I find it to be a nice choice for the sorts of “systems programming” tasks in which I might also use C or C++, but the build tools and package management system (<a href="https://crates.io">Cargo</a>) also make it a viable choice for these sorts of “script-like” programs, especially when performance may be an issue.</p>
+<p>Let’s begin by creating a new Rust project using Cargo. We want a program (binary), not a library:</p>
+<pre><code>$ cargo new ocd_production --bin</code></pre>
+<p>That’ll create a new directory <code>ocd_production</code> containing a Rust project. Inside we have a “hello world” program in <code>src/main.rs</code> and a specification for the project in <code>Cargo.toml</code>. The directory is also a <code>git</code> repository, which is handy.</p>
+<p>There’s no sense in unpacking the ZIP file when we can stream our XML file out of it using the <a href="https://crates.io/crates/zip"><code>zip</code></a> library. Let’s begin by just previewing the text of the XML file.</p>
+<p>We’ll add <code>zip</code> to our <code>Cargo.toml</code>:</p>
+<pre class="toml"><code>[package]
+name = &quot;ocd_production&quot;
+version = &quot;0.1.0&quot;
+authors = [&quot;Derrick W. Turk &lt;dwt@terminusdatascience.com&gt;&quot;]
+edition = &quot;2018&quot;
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+zip = &quot;0.5.5&quot;</code></pre>
+<p>A caveat before we begin: this is going to be “script” quality code. My goal is to process one file quickly and reliably, not to build a reusable library or produce “production-ready” code. As such, this code is going to skip some “best practices”: everything will be in one long <code>main.rs</code> file, and error handling will be oriented toward catching error conditions and aborting the program rather than toward error recovery or human-friendly error messages.</p>
+<p>With that in mind, let’s write a short program in <code>src/main.rs</code> to take a ZIP file path as a command-line argument, and stream a few KB at a time from the file contained inside:</p>
+<pre class="sourceCode rust" id="cb3"><code class="sourceCode rust"><a class="sourceLine" id="cb3-1" data-line-number="1"><span class="kw">use</span> std::<span class="op">{</span></a>
+<a class="sourceLine" id="cb3-2" data-line-number="2">    env,</a>
+<a class="sourceLine" id="cb3-3" data-line-number="3">    error::Error,</a>
+<a class="sourceLine" id="cb3-4" data-line-number="4">    fs::File,</a>
+<a class="sourceLine" id="cb3-5" data-line-number="5">    io::Read,</a>
+<a class="sourceLine" id="cb3-6" data-line-number="6">    <span class="dt">str</span>,</a>
+<a class="sourceLine" id="cb3-7" data-line-number="7"><span class="op">}</span>;</a>
+<a class="sourceLine" id="cb3-8" data-line-number="8"></a>
+<a class="sourceLine" id="cb3-9" data-line-number="9"><span class="kw">use</span> zip::ZipArchive;</a>
+<a class="sourceLine" id="cb3-10" data-line-number="10"></a>
+<a class="sourceLine" id="cb3-11" data-line-number="11"><span class="kw">const</span> BUF_SIZE: <span class="dt">usize</span> = <span class="dv">4096</span>; <span class="co">// 4kb at once</span></a>
+<a class="sourceLine" id="cb3-12" data-line-number="12"></a>
+<a class="sourceLine" id="cb3-13" data-line-number="13"><span class="kw">fn</span> main() -&gt; <span class="dt">Result</span>&lt;(), <span class="dt">Box</span>&lt;dyn Error&gt;&gt; <span class="op">{</span></a>
+<a class="sourceLine" id="cb3-14" data-line-number="14">    <span class="kw">let</span> path = env::args().nth(<span class="dv">1</span>).ok_or(<span class="st">&quot;no filename provided&quot;</span>)?;</a>
+<a class="sourceLine" id="cb3-15" data-line-number="15">    <span class="kw">let</span> zipfile = File::open(path)?;</a>
+<a class="sourceLine" id="cb3-16" data-line-number="16">    <span class="kw">let</span> <span class="kw">mut</span> zip = ZipArchive::new(zipfile)?;</a>
+<a class="sourceLine" id="cb3-17" data-line-number="17"></a>
+<a class="sourceLine" id="cb3-18" data-line-number="18">    <span class="kw">if</span> zip.len() != <span class="dv">1</span> <span class="op">{</span></a>
+<a class="sourceLine" id="cb3-19" data-line-number="19">        <span class="cn">Err</span>(<span class="st">&quot;expected one file in zip archive&quot;</span>)?;</a>
+<a class="sourceLine" id="cb3-20" data-line-number="20">    <span class="op">}</span></a>
+<a class="sourceLine" id="cb3-21" data-line-number="21"></a>
+<a class="sourceLine" id="cb3-22" data-line-number="22">    <span class="kw">let</span> <span class="kw">mut</span> xmlfile = zip.by_index(<span class="dv">0</span>)?;</a>
+<a class="sourceLine" id="cb3-23" data-line-number="23">    <span class="pp">println!</span>(<span class="st">&quot;file is {}, size {} bytes&quot;</span>, xmlfile.name(), xmlfile.size());</a>
+<a class="sourceLine" id="cb3-24" data-line-number="24"></a>
+<a class="sourceLine" id="cb3-25" data-line-number="25">    <span class="kw">let</span> <span class="kw">mut</span> buf = <span class="op">[</span><span class="dv">0u8</span>; BUF_SIZE<span class="op">]</span>;</a>
+<a class="sourceLine" id="cb3-26" data-line-number="26">    <span class="kw">loop</span> <span class="op">{</span></a>
+<a class="sourceLine" id="cb3-27" data-line-number="27">        <span class="kw">if</span> xmlfile.read(&amp;<span class="kw">mut</span> buf<span class="op">[</span>..<span class="op">]</span>)? == <span class="dv">0</span> <span class="op">{</span></a>
+<a class="sourceLine" id="cb3-28" data-line-number="28">            <span class="kw">break</span>;</a>
+<a class="sourceLine" id="cb3-29" data-line-number="29">        <span class="op">}</span></a>
+<a class="sourceLine" id="cb3-30" data-line-number="30"></a>
+<a class="sourceLine" id="cb3-31" data-line-number="31">        <span class="pp">println!</span>(<span class="st">&quot;read chunk: {}&quot;</span>, <span class="dt">str</span>::from_utf8(&amp;buf<span class="op">[</span>..<span class="op">]</span>)?);</a>
+<a class="sourceLine" id="cb3-32" data-line-number="32">    <span class="op">}</span></a>
+<a class="sourceLine" id="cb3-33" data-line-number="33"></a>
+<a class="sourceLine" id="cb3-34" data-line-number="34">    <span class="cn">Ok</span>(())</a>
+<a class="sourceLine" id="cb3-35" data-line-number="35"><span class="op">}</span></a></code></pre>
+<p>We’ll compile in “release mode” (that is, with optimizations enabled) and run against the ZIP file:</p>
+<pre><code>$ cargo run --release wc_production.zip</code></pre>
+<blockquote class="code-output">
+<p><code>file is wcproduction.xml, size 38535541060 bytes</code><br />
+<code>Error: Utf8Error { valid_up_to: 0, error_len: Some(1) }</code></p>
+</blockquote>
+<p>That’s discouraging.</p>
+<h3 class="title">Only 90s Kids Will Remember This File Encoding</h3>
+<p>Like many “modern” languages, Rust’s standard string type is a <a href="https://en.wikipedia.org/wiki/UTF-8">UTF-8</a> encoded <a href="https://home.unicode.org/">Unicode</a> string. This is the right answer for a <a href="https://utf8everywhere.org/">lot of good reasons</a>, but it’s only become popular in recent years.</p>
+<p>In this case, we’ve clearly encountered some text which is not encoded in UTF-8. In fact, we’ve hit an invalid byte as the very first byte. Let’s look at raw bytes, rather than Rust strings, so that we can see what’s going on. We’ll edit <code>src/main.rs</code>:</p>
+<pre class="sourceCode rust" id="cb5"><code class="sourceCode rust"><a class="sourceLine" id="cb5-1" data-line-number="1"><span class="kw">use</span> std::<span class="op">{</span></a>
+<a class="sourceLine" id="cb5-2" data-line-number="2">    env,</a>
+<a class="sourceLine" id="cb5-3" data-line-number="3">    error::Error,</a>
+<a class="sourceLine" id="cb5-4" data-line-number="4">    fs::File,</a>
+<a class="sourceLine" id="cb5-5" data-line-number="5">    io::Read,</a>
+<a class="sourceLine" id="cb5-6" data-line-number="6">    <span class="dt">str</span>,</a>
+<a class="sourceLine" id="cb5-7" data-line-number="7"><span class="op">}</span>;</a>
+<a class="sourceLine" id="cb5-8" data-line-number="8"></a>
+<a class="sourceLine" id="cb5-9" data-line-number="9"><span class="kw">use</span> zip::ZipArchive;</a>
+<a class="sourceLine" id="cb5-10" data-line-number="10"></a>
+<a class="sourceLine" id="cb5-11" data-line-number="11"><span class="kw">const</span> BUF_SIZE: <span class="dt">usize</span> = <span class="dv">4096</span>; <span class="co">// 4kb at once</span></a>
+<a class="sourceLine" id="cb5-12" data-line-number="12"></a>
+<a class="sourceLine" id="cb5-13" data-line-number="13"><span class="kw">fn</span> main() -&gt; <span class="dt">Result</span>&lt;(), <span class="dt">Box</span>&lt;dyn Error&gt;&gt; <span class="op">{</span></a>
+<a class="sourceLine" id="cb5-14" data-line-number="14">    <span class="kw">let</span> path = env::args().nth(<span class="dv">1</span>).ok_or(<span class="st">&quot;no filename provided&quot;</span>)?;</a>
+<a class="sourceLine" id="cb5-15" data-line-number="15">    <span class="kw">let</span> zipfile = File::open(path)?;</a>
+<a class="sourceLine" id="cb5-16" data-line-number="16">    <span class="kw">let</span> <span class="kw">mut</span> zip = ZipArchive::new(zipfile)?;</a>
+<a class="sourceLine" id="cb5-17" data-line-number="17"></a>
+<a class="sourceLine" id="cb5-18" data-line-number="18">    <span class="kw">if</span> zip.len() != <span class="dv">1</span> <span class="op">{</span></a>
+<a class="sourceLine" id="cb5-19" data-line-number="19">        <span class="cn">Err</span>(<span class="st">&quot;expected one file in zip archive&quot;</span>)?;</a>
+<a class="sourceLine" id="cb5-20" data-line-number="20">    <span class="op">}</span></a>
+<a class="sourceLine" id="cb5-21" data-line-number="21"></a>
+<a class="sourceLine" id="cb5-22" data-line-number="22">    <span class="kw">let</span> <span class="kw">mut</span> xmlfile = zip.by_index(<span class="dv">0</span>)?;</a>
+<a class="sourceLine" id="cb5-23" data-line-number="23">    <span class="pp">println!</span>(<span class="st">&quot;file is {}, size {} bytes&quot;</span>, xmlfile.name(), xmlfile.size());</a>
+<a class="sourceLine" id="cb5-24" data-line-number="24"></a>
+<a class="sourceLine" id="cb5-25" data-line-number="25">    <span class="kw">let</span> <span class="kw">mut</span> buf = <span class="op">[</span><span class="dv">0u8</span>; BUF_SIZE<span class="op">]</span>;</a>
+<a class="sourceLine" id="cb5-26" data-line-number="26">    <span class="kw">loop</span> <span class="op">{</span></a>
+<a class="sourceLine" id="cb5-27" data-line-number="27">        <span class="kw">if</span> xmlfile.read(&amp;<span class="kw">mut</span> buf<span class="op">[</span>..<span class="op">]</span>)? == <span class="dv">0</span> <span class="op">{</span></a>
+<a class="sourceLine" id="cb5-28" data-line-number="28">            <span class="kw">break</span>;</a>
+<a class="sourceLine" id="cb5-29" data-line-number="29">        <span class="op">}</span></a>
+<a class="sourceLine" id="cb5-30" data-line-number="30"></a>
+<a class="sourceLine" id="cb5-31" data-line-number="31">        <span class="pp">println!</span>(<span class="st">&quot;read chunk: {:?}&quot;</span>, &amp;buf<span class="op">[</span>..<span class="op">]</span>);</a>
+<a class="sourceLine" id="cb5-32" data-line-number="32">        <span class="co">// we&#39;ll just dump the first chunk so we can see what&#39;s going on</span></a>
+<a class="sourceLine" id="cb5-33" data-line-number="33">        <span class="kw">break</span>;</a>
+<a class="sourceLine" id="cb5-34" data-line-number="34">    <span class="op">}</span></a>
+<a class="sourceLine" id="cb5-35" data-line-number="35"></a>
+<a class="sourceLine" id="cb5-36" data-line-number="36">    <span class="cn">Ok</span>(())</a>
+<a class="sourceLine" id="cb5-37" data-line-number="37"><span class="op">}</span></a></code></pre>
+<blockquote class="code-output">
+<p><code>file is wcproduction.xml, size 38535541060 bytes</code><br />
+<code>read chunk: [255, 254, 60, 0, 114, 0, 111, 0, 111, 0, 116, 0, 32, 0, 120, 0, 109, 0, 108, 0, 110, 0, 115, 0, 58, 0, 120, 0, 115, 0, 105, 0, 61, 0, 34, 0, 104, 0, 116, 0, 116, 0, 112, 0, 58, 0, 47, 0, 47, 0, 119, 0, 119, 0, 119, 0, 46, 0, 119, 0, 51, 0, 46, 0, 111, 0, 114, 0, 103, 0, 47, 0, 50, 0, 48, 0, 48, 0, 49, 0, 47, 0, 88, 0, 77, 0, 76, 0, 83, 0, 99, 0, 104, 0, 101, 0, 109, 0, 97, 0, 45, 0, 105, 0, 110, 0, 115, 0, 116, 0, 97, 0, 110, 0, 99, 0, 101, 0, 34, 0, 62, 0, 60, 0, 120, 0, 115, 0, 100, 0, 58, 0, 115, 0, 99, 0, 104, 0, 101, 0, 109, 0, 97, 0, 32, 0, 116, 0, 97, 0, 114, 0, 103, 0, 101, 0, 116, 0, 78, 0, 97, 0, ...</code></p>
+</blockquote>
+<p>At this point, recovering Windows programmers and Java programmers are wincing in sympathy. Two things immediately stand out: first, we’ve got a series of bytes alternating between the printable ASCII range and zero, and second, we open with <code>0xFF 0xFE</code>—that’s a <a href="https://en.wikipedia.org/wiki/Byte_order_mark">BOM</a>. We’re dealing with <a href="https://en.wikipedia.org/wiki/UTF-16">UTF-16</a> in <a href="https://en.wikipedia.org/wiki/Endianness">little-endian</a> byte order.</p>
+<p>If you want the short version of how we got here, I suggest reading <a href="https://www.kingjamesbibleonline.org/Genesis-Chapter-11/">Chapter 11 of the Book of Genesis</a>.</p>
+<p>The slightly longer version goes like this: in the late 80s, some forward-thinking folks began thinking seriously about the fact that non-Americans were using computers. In fact, some of the world’s computer users weren’t even Europeans, who could usually get away with smuggling some funny accented Latin characters into that “unused” eighth bit of <a href="https://en.wikipedia.org/wiki/ASCII">ASCII</a>. Of course, the non-Latin alphabet folks were doing just fine on their own: they had their own character sets and encodings.</p>
+<p>But wouldn’t it be nice if we could all share one universal character set? Some sort of… “Uni”versal “code”? Surely, they reasoned, the Chinese/Japanese/Korean (CJK) character sets, the Latin alphabet, the Cyrillic alphabet, and anything else of interest could all be encoded into a shared 16-bit range. 65,536 characters should be enough for all the world’s languages! We’d just decide that the new “character type” was a 16-bit integer instead of an 8-bit integer; strings could still be arrays of these characters, and doubling the storage required for existing ASCII text was an acceptable price to pay for global harmony. Big names committed to this new “Universal Character Set” (<a href="https://en.wikipedia.org/wiki/Universal_Coded_Character_Set">UCS-2</a>): Microsoft rebuilt Windows’ string handling to use strings of two-byte UCS-2 “wide characters”, and the hot new Java programming language made the same decision.</p>
+<p>As you can imagine, 65,536 characters did not turn out to be nearly enough for all the world’s languages—much less the wave of weird 👩‍👩‍👦‍👦 characters 💯 yet to 🔜 appear. Unicode ended up adopting a 32-bit address space, supporting over 4 billion characters. We’re unlikely to fill that any time soon, even given the breathtaking pace of emoji creation.</p>
+<p>However, it also seemed unattractive to commit to an encoding which used fixed-width 32-bit characters. Encoding and decoding would be simple, but for the (still very common) case of plain ASCII text, we’d waste 3 bytes out of every 4. The solution was a “patch” in the form of the UTF-16 encoding, which used 16-bit “characters” like UCS-2, but provided an escape mechanism to encode characters outside the <a href="https://en.wikipedia.org/wiki/Plane_(Unicode)#Basic_Multilingual_Plane">Basic Multilingual Plane</a> as two-character “surrogate pairs”.</p>
+<p>This let the Windows and Java people patch up their systems, but it’s sort of unsatisfying: once we’ve accepted the need for a variable-width encoding, why are we still wasting two bytes per character even for the Latin alphabet? This line of reasoning led directly to UTF-8<a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a>, which uses ordinary one-byte characters in a variable-width encoding scheme to faithfully represent all of Unicode while preserving compatibility with ASCII.</p>
+<p>Returning from our digression into computational Babel, we spot the other issue with “wide characters” which we’ve directly encountered in our XML file. Our modern computer architectures are “byte-oriented”: we’ve achieved a sort of rough consensus that everything should be able to work on atomic units of 8 bits. However, almost all interesting quantities are larger: we work with 64-bit (8 byte) addresses, 16-bit (2 byte) UCS-2 characters, and so forth. How shall we represent these inside a world of sequentially-addressed bytes? We have two main choices: least-significant byte first (“little-endian”) or most-significant byte first (“big-endian”). Different CPU architectures made different choices, and so when we share UCS-2 or UTF-16 text we need a way to tell which byte order the text was encoded with. That’s the purpose of the BOM we saw at the beginning of our file: since the Unicode-mandated value of <code>0xFEFF</code> has appeared in our file as <code>0xFF 0xFE</code>, we know that this file was encoded with a little-endian byte order.</p>
+<p>Very fortunately for us, we can use a library to take care of all of this for us. The <a href="https://crates.io/crates/encoding_rs"><code>encoding_rs</code></a> and <a href="https://crates.io/crates/encoding_rs_io"><code>encoding_rs_io</code></a> libraries will let us translate from UTF-16 to UTF-8 on the fly, which will let us send ordinary Rust strings into our XML parser.</p>
+<p>We will update `Cargo.toml’:</p>
+<pre><code>[package]
+name = &quot;ocd_production&quot;
+version = &quot;0.1.0&quot;
+authors = [&quot;Derrick W. Turk &lt;dwt@terminusdatascience.com&gt;&quot;]
+edition = &quot;2018&quot;
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+encoding_rs = &quot;0.8.22&quot;
+encoding_rs_io = &quot;0.1.7&quot;
+zip = &quot;0.5.5&quot;</code></pre>
+<p>And then <code>src/main.rs</code>:</p>
+<pre class="sourceCode rust" id="cb7"><code class="sourceCode rust"><a class="sourceLine" id="cb7-1" data-line-number="1"><span class="kw">use</span> std::<span class="op">{</span></a>
+<a class="sourceLine" id="cb7-2" data-line-number="2">    env,</a>
+<a class="sourceLine" id="cb7-3" data-line-number="3">    error::Error,</a>
+<a class="sourceLine" id="cb7-4" data-line-number="4">    fs::File,</a>
+<a class="sourceLine" id="cb7-5" data-line-number="5">    io::Read,</a>
+<a class="sourceLine" id="cb7-6" data-line-number="6">    <span class="dt">str</span>,</a>
+<a class="sourceLine" id="cb7-7" data-line-number="7"><span class="op">}</span>;</a>
+<a class="sourceLine" id="cb7-8" data-line-number="8"></a>
+<a class="sourceLine" id="cb7-9" data-line-number="9"><span class="kw">use</span> zip::ZipArchive;</a>
+<a class="sourceLine" id="cb7-10" data-line-number="10"></a>
+<a class="sourceLine" id="cb7-11" data-line-number="11"><span class="kw">use</span> encoding_rs_io::DecodeReaderBytes;</a>
+<a class="sourceLine" id="cb7-12" data-line-number="12"></a>
+<a class="sourceLine" id="cb7-13" data-line-number="13"><span class="kw">const</span> BUF_SIZE: <span class="dt">usize</span> = <span class="dv">4096</span>; <span class="co">// 4kb at once</span></a>
+<a class="sourceLine" id="cb7-14" data-line-number="14"></a>
+<a class="sourceLine" id="cb7-15" data-line-number="15"><span class="kw">fn</span> main() -&gt; <span class="dt">Result</span>&lt;(), <span class="dt">Box</span>&lt;dyn Error&gt;&gt; <span class="op">{</span></a>
+<a class="sourceLine" id="cb7-16" data-line-number="16">    <span class="kw">let</span> path = env::args().nth(<span class="dv">1</span>).ok_or(<span class="st">&quot;no filename provided&quot;</span>)?;</a>
+<a class="sourceLine" id="cb7-17" data-line-number="17">    <span class="kw">let</span> zipfile = File::open(path)?;</a>
+<a class="sourceLine" id="cb7-18" data-line-number="18">    <span class="kw">let</span> <span class="kw">mut</span> zip = ZipArchive::new(zipfile)?;</a>
+<a class="sourceLine" id="cb7-19" data-line-number="19"></a>
+<a class="sourceLine" id="cb7-20" data-line-number="20">    <span class="kw">if</span> zip.len() != <span class="dv">1</span> <span class="op">{</span></a>
+<a class="sourceLine" id="cb7-21" data-line-number="21">        <span class="cn">Err</span>(<span class="st">&quot;expected one file in zip archive&quot;</span>)?;</a>
+<a class="sourceLine" id="cb7-22" data-line-number="22">    <span class="op">}</span></a>
+<a class="sourceLine" id="cb7-23" data-line-number="23"></a>
+<a class="sourceLine" id="cb7-24" data-line-number="24">    <span class="kw">let</span> xmlfile = zip.by_index(<span class="dv">0</span>)?;</a>
+<a class="sourceLine" id="cb7-25" data-line-number="25">    <span class="pp">println!</span>(<span class="st">&quot;file is {}, size {} bytes&quot;</span>, xmlfile.name(), xmlfile.size());</a>
+<a class="sourceLine" id="cb7-26" data-line-number="26">    <span class="kw">let</span> <span class="kw">mut</span> xmlfile = DecodeReaderBytes::new(xmlfile);</a>
+<a class="sourceLine" id="cb7-27" data-line-number="27"></a>
+<a class="sourceLine" id="cb7-28" data-line-number="28">    <span class="kw">let</span> <span class="kw">mut</span> buf = <span class="op">[</span><span class="dv">0u8</span>; BUF_SIZE<span class="op">]</span>;</a>
+<a class="sourceLine" id="cb7-29" data-line-number="29">    <span class="kw">loop</span> <span class="op">{</span></a>
+<a class="sourceLine" id="cb7-30" data-line-number="30">        <span class="kw">if</span> xmlfile.read(&amp;<span class="kw">mut</span> buf<span class="op">[</span>..<span class="op">]</span>)? == <span class="dv">0</span> <span class="op">{</span></a>
+<a class="sourceLine" id="cb7-31" data-line-number="31">            <span class="kw">break</span>;</a>
+<a class="sourceLine" id="cb7-32" data-line-number="32">        <span class="op">}</span></a>
+<a class="sourceLine" id="cb7-33" data-line-number="33"></a>
+<a class="sourceLine" id="cb7-34" data-line-number="34">        <span class="pp">println!</span>(<span class="st">&quot;read chunk: {}&quot;</span>, <span class="dt">str</span>::from_utf8(&amp;buf<span class="op">[</span>..<span class="op">]</span>)?);</a>
+<a class="sourceLine" id="cb7-35" data-line-number="35">        <span class="co">// again, just print the first chunk</span></a>
+<a class="sourceLine" id="cb7-36" data-line-number="36">        <span class="kw">break</span>;</a>
+<a class="sourceLine" id="cb7-37" data-line-number="37">    <span class="op">}</span></a>
+<a class="sourceLine" id="cb7-38" data-line-number="38"></a>
+<a class="sourceLine" id="cb7-39" data-line-number="39">    <span class="cn">Ok</span>(())</a>
+<a class="sourceLine" id="cb7-40" data-line-number="40"><span class="op">}</span></a></code></pre>
+<blockquote class="code-output">
+<p><code>file is wcproduction.xml, size 38535541060 bytes</code><br />
+<code>read chunk: &lt;root xmlns:xsi=&quot;http://www.w3.org/2001/XMLSchema-instance&quot;&gt;&lt;xsd:schema targetNamespace=&quot;urn:schemas-microsoft-com:sql:SqlRowSet1&quot; xmlns:schema=&quot;urn:schemas-microsoft-com:sql:SqlRowSet1&quot; xmlns:xsd=&quot;http://www.w3.org/2001/XMLSchema&quot; xmlns:sqltypes=&quot;http://schemas.microsoft.com/sqlserver/2004/sqltypes&quot; elementFormDefault=&quot;qualified&quot;&gt;&lt;xsd:import namespace=&quot;http://schemas.microsoft.com/sqlserver/2004/sqltypes&quot; schemaLocation=&quot;http://schemas.microsoft.com/sqlserver/2004/sqltypes/sqltypes.xsd&quot;/&gt;&lt;xsd:element name=&quot;wcproduction&quot;&gt;&lt;xsd:complexType&gt;&lt;xsd:sequence&gt;&lt;xsd:element name=&quot;api_st_cde&quot; type=&quot;sqltypes:smallint&quot; nillable=&quot;1&quot;/&gt;&lt;xsd:element name=&quot;api_cnty_cde&quot; type=&quot;sqltypes:smallint&quot; nillable=&quot;1&quot;/&gt;&lt;xsd:element name=&quot;api_well_idn&quot; type=&quot;sqltypes:int&quot; nillable=&quot;1&quot;/&gt;&lt;xsd:element name=&quot;pool_idn&quot; type=&quot;sqltypes:int&quot; nillable=&quot;1&quot;/&gt;&lt;xsd:element name=&quot;prodn_mth&quot; type=&quot;sqltypes:smallint&quot; nillable=&quot;1&quot;/&gt;&lt;xsd:element name=&quot;prodn_yr&quot; type=&quot;sqltypes:int&quot; nillable=&quot;1&quot;/&gt;&lt;xsd:element name=&quot;ogrid_cde&quot; type=&quot;sqltypes:int&quot; nillable=&quot;1&quot;/&gt;&lt;xsd:element name=&quot;prd_knd_cde&quot; nillable=&quot;1&quot;&gt;&lt;xsd:simpleType&gt;&lt;xsd:restriction base=&quot;sqltypes:char&quot; sqltypes:localeId=&quot;1033&quot; sqltypes:sqlCompareOptions=&quot;IgnoreCase IgnoreKanaType IgnoreWidth&quot; sqltypes:sqlSortId=&quot;52&quot;&gt;&lt;xsd:maxLength value=&quot;2&quot;/&gt;&lt;/xsd:restriction&gt;&lt;/xsd:simpleType&gt;&lt;/xsd:element&gt;&lt;xsd:element name=&quot;eff_dte&quot; type=&quot;sqltypes:datetime&quot; nillable=&quot;1&quot;/&gt;&lt;xsd:element name=&quot;amend_ind&quot; nillable=&quot;1&quot;&gt;&lt;xsd:simpleType&gt;&lt;xsd:restriction base=&quot;sqltypes:char&quot; sqltypes:localeId=&quot;1033&quot; sqltypes:sqlCompareOptions=&quot;IgnoreCase IgnoreKanaType IgnoreWidth&quot; sqltypes:sqlSortId=&quot;52&quot;&gt;&lt;xsd:maxLength value=&quot;1&quot;/&gt;&lt;/xsd:restriction&gt;&lt;/xsd:simpleType&gt;&lt;/xsd:element&gt;&lt;xsd:element name=&quot;c115_wc_stat_cde&quot; nillable=&quot;1&quot;&gt;&lt;xsd:simpleType&gt;&lt;xsd:restriction base=&quot;sqltypes:char&quot; sqltypes:localeId=&quot;1033&quot; sqltypes:sqlCompareOptions=&quot;IgnoreCase IgnoreKanaType IgnoreWidth&quot; sqltypes:sqlSortId=&quot;52&quot;&gt;&lt;xsd:maxLength value=&quot;1&quot;/&gt;&lt;/xsd:restriction&gt;&lt;/xsd:simpleType&gt;&lt;/xsd:element&gt;&lt;xsd:element name=&quot;prod_amt&quot; type=&quot;sqltypes:int&quot; nillable=&quot;1&quot;/&gt;&lt;xsd:element name=&quot;prodn_day_num&quot; type=&quot;sqltypes:smallint&quot; nillable=&quot;1&quot;/&gt;&lt;xsd:element name=&quot;mod_dte&quot; type=&quot;sqltypes:datetime&quot; nillable=&quot;1&quot;/&gt;&lt;/xsd:sequence&gt;&lt;/xsd:complexType&gt;&lt;/xsd:element&gt;&lt;/xsd:schema&gt;&lt;wcproduction xmlns=&quot;urn:schemas-microsoft-com:sql:SqlRowSet1&quot;&gt;&lt;api_st_cde&gt;30&lt;/api_st_cde&gt;&lt;api_cnty_cde&gt;5&lt;/api_cnty_cde&gt;&lt;api_well_idn&gt;20178&lt;/api_well_idn&gt;&lt;pool_idn&gt;10540&lt;/pool_idn&gt;&lt;prodn_mth&gt;7&lt;/prodn_mth&gt;&lt;prodn_yr&gt;1973&lt;/prodn_yr&gt;&lt;ogrid_cde&gt;12437&lt;/ogrid_cde&gt;&lt;prd_knd_cde&gt;G &lt;/prd_knd_cde&gt;&lt;eff_dte&gt;1973-07-31T00:00:00&lt;/eff_dte&gt;&lt;amend_ind&gt;N&lt;/amend_ind&gt;&lt;c115_wc_stat_cde&gt;F&lt;/c115_wc_stat_cde&gt;&lt;prod_amt&gt;53612&lt;/prod_amt&gt;&lt;prodn_day_num&gt;99&lt;/prodn_day_num&gt;&lt;mod_dte&gt;2015-04-07T07:31:00.173&lt;/mod_dte&gt;&lt;/wcproduction&gt;&lt;wcproduction xmlns=&quot;urn:schemas-microsoft-com:sql:SqlRowSet1&quot;&gt;&lt;api_st_cde&gt;30&lt;/api_st_cde&gt;&lt;api_cnty_cde&gt;5&lt;/api_cnty_cde&gt;&lt;api_well_idn&gt;20178&lt;/api_well_idn&gt;&lt;pool_idn&gt;10540&lt;/pool_idn&gt;&lt;prodn_mth&gt;7&lt;/prodn_mth&gt;&lt;prodn_yr&gt;1973&lt;/prodn_yr&gt;&lt;ogrid_cde&gt;12437&lt;/ogrid_cde&gt;&lt;prd_knd_cde&gt;O &lt;/prd_knd_cde&gt;&lt;eff_dte&gt;1973-07-31T00:00:00&lt;/eff_dte&gt;&lt;amend_ind&gt;N&lt;/amend_ind&gt;&lt;c115_wc_stat_cde&gt;P&lt;/c115_wc_stat_cde&gt;&lt;prod_amt&gt;75262&lt;/prod_amt&gt;&lt;prodn_day_num&gt;99&lt;/prodn_day_num&gt;&lt;mod_dte&gt;2015-04-07T07:31:00.173&lt;/mod_dte&gt;&lt;/wcproduction&gt;&lt;wcproduction xmlns=&quot;urn:schemas-microsoft-com:sql:SqlRowSet1&quot;&gt;&lt;api_st_cde&gt;30&lt;/api_st_cde&gt;&lt;api_cnty_cde&gt;5&lt;/api_cnty_cde&gt;&lt;api_well_idn&gt;20178&lt;/api_well_idn&gt;&lt;pool_idn&gt;10540&lt;/pool_idn&gt;&lt;prodn_mth&gt;7&lt;/prodn_mth&gt;&lt;prodn_yr&gt;1973&lt;/prodn_yr&gt;&lt;ogrid_cde&gt;12437&lt;/ogrid_cde&gt;&lt;prd_knd_cde&gt;W &lt;/prd_knd_cde&gt;&lt;eff_dte&gt;1973-07-31T00:00:00&lt;/eff_dte&gt;&lt;amend_ind&gt;N&lt;/amend_ind&gt;&lt;c115_wc_stat_cde&gt;P&lt;/c115_wc_stat_cde&gt;&lt;prod_amt&gt;25509&lt;/prod_amt&gt;&lt;prodn_day_num&gt;99&lt;/prodn_day_num&gt;&lt;mod_dte&gt;2015-04-07T07:31:00.173&lt;/mod_dte&gt;&lt;/wcproduction&gt;&lt;wcproduction xmlns=&quot;urn:schemas-microsoft-com:sql:SqlRowSet1&quot;&gt;&lt;api_st_cde&gt;30&lt;/api_st_cde&gt;&lt;api_cnty_cde&gt;15&lt;/api_cnty_cde&gt;&lt;api_well_idn&gt;645&lt;/api_well_idn&gt;&lt;pool_idn&gt;51300&lt;/pool_idn&gt;&lt;prodn_mth&gt;10&lt;/prodn_mth&gt;&lt;prodn_yr&gt;1973&lt;/prodn_yr&gt;&lt;ogrid_cde&gt;19958&lt;/ogrid_cde&gt;&lt;prd_knd_cde&gt;O &lt;/prd_knd_cde&gt;&lt;eff_dte&gt;1973-10-31T00:00:00&lt;/eff_dte&gt;&lt;amend_ind&gt;N&lt;/amend_ind&gt;</code></p>
+</blockquote>
+<h3 class="title">Seeing Like a State Machine</h3>
+<p>OK, so that’s obviously some fairly horrible XML auto-generated by Microsoft SQL Server. If we squint, we can see that the structure is a sequence of <code>&lt;wcproduction&gt;</code> elements containing nested elements for the pieces of data we care about: well API numbers, production volumes, and so on.</p>
+<p>We’re going to use a streaming approach to parse this due to the huge file size. After some very superficial research, I decided to go with the <a href="https://crates.io/crates/quick-xml">quick-xml</a> library because it had good documentation, good performance, and roughly the API I was looking for. The first step is to make sure we can stream “events” (for example, “beginning of element”) from our XML file.</p>
+<p>We make one final update to <code>Cargo.toml</code>:</p>
+<pre><code>[package]
+name = &quot;ocd_production&quot;
+version = &quot;0.1.0&quot;
+authors = [&quot;Derrick W. Turk &lt;dwt@terminusdatascience.com&gt;&quot;]
+edition = &quot;2018&quot;
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+encoding_rs = &quot;0.8.22&quot;
+encoding_rs_io = &quot;0.1.7&quot;
+quick-xml = &quot;0.18.1&quot;
+zip = &quot;0.5.5&quot;</code></pre>
+<p>In <code>src/main.rs</code> we replace our chunk-at-a-time <code>println</code> with a pattern match on events generated by the <code>quick-xml</code> parser:</p>
+<pre class="sourceCode rust" id="cb9"><code class="sourceCode rust"><a class="sourceLine" id="cb9-1" data-line-number="1"><span class="kw">use</span> std::<span class="op">{</span></a>
+<a class="sourceLine" id="cb9-2" data-line-number="2">    env,</a>
+<a class="sourceLine" id="cb9-3" data-line-number="3">    error::Error,</a>
+<a class="sourceLine" id="cb9-4" data-line-number="4">    fs::File,</a>
+<a class="sourceLine" id="cb9-5" data-line-number="5">    io::BufReader,</a>
+<a class="sourceLine" id="cb9-6" data-line-number="6">    <span class="dt">str</span>,</a>
+<a class="sourceLine" id="cb9-7" data-line-number="7"><span class="op">}</span>;</a>
+<a class="sourceLine" id="cb9-8" data-line-number="8"></a>
+<a class="sourceLine" id="cb9-9" data-line-number="9"><span class="kw">use</span> zip::ZipArchive;</a>
+<a class="sourceLine" id="cb9-10" data-line-number="10"></a>
+<a class="sourceLine" id="cb9-11" data-line-number="11"><span class="kw">use</span> encoding_rs_io::DecodeReaderBytes;</a>
+<a class="sourceLine" id="cb9-12" data-line-number="12"></a>
+<a class="sourceLine" id="cb9-13" data-line-number="13"><span class="kw">use</span> quick_xml::<span class="op">{</span></a>
+<a class="sourceLine" id="cb9-14" data-line-number="14">    events::Event,</a>
+<a class="sourceLine" id="cb9-15" data-line-number="15">    Reader,</a>
+<a class="sourceLine" id="cb9-16" data-line-number="16"><span class="op">}</span>;</a>
+<a class="sourceLine" id="cb9-17" data-line-number="17"></a>
+<a class="sourceLine" id="cb9-18" data-line-number="18"><span class="kw">const</span> BUF_SIZE: <span class="dt">usize</span> = <span class="dv">4096</span>; <span class="co">// 4kb at once</span></a>
+<a class="sourceLine" id="cb9-19" data-line-number="19"></a>
+<a class="sourceLine" id="cb9-20" data-line-number="20"><span class="kw">fn</span> main() -&gt; <span class="dt">Result</span>&lt;(), <span class="dt">Box</span>&lt;dyn Error&gt;&gt; <span class="op">{</span></a>
+<a class="sourceLine" id="cb9-21" data-line-number="21">    <span class="kw">let</span> path = env::args().nth(<span class="dv">1</span>).ok_or(<span class="st">&quot;no filename provided&quot;</span>)?;</a>
+<a class="sourceLine" id="cb9-22" data-line-number="22">    <span class="kw">let</span> zipfile = File::open(path)?;</a>
+<a class="sourceLine" id="cb9-23" data-line-number="23">    <span class="kw">let</span> <span class="kw">mut</span> zip = ZipArchive::new(zipfile)?;</a>
+<a class="sourceLine" id="cb9-24" data-line-number="24"></a>
+<a class="sourceLine" id="cb9-25" data-line-number="25">    <span class="kw">if</span> zip.len() != <span class="dv">1</span> <span class="op">{</span></a>
+<a class="sourceLine" id="cb9-26" data-line-number="26">        <span class="cn">Err</span>(<span class="st">&quot;expected one file in zip archive&quot;</span>)?;</a>
+<a class="sourceLine" id="cb9-27" data-line-number="27">    <span class="op">}</span></a>
+<a class="sourceLine" id="cb9-28" data-line-number="28"></a>
+<a class="sourceLine" id="cb9-29" data-line-number="29">    <span class="kw">let</span> xmlfile = zip.by_index(<span class="dv">0</span>)?;</a>
+<a class="sourceLine" id="cb9-30" data-line-number="30">    <span class="pp">println!</span>(<span class="st">&quot;file is {}, size {} bytes&quot;</span>, xmlfile.name(), xmlfile.size());</a>
+<a class="sourceLine" id="cb9-31" data-line-number="31">    <span class="kw">let</span> xmlfile = BufReader::new(DecodeReaderBytes::new(xmlfile));</a>
+<a class="sourceLine" id="cb9-32" data-line-number="32">    <span class="kw">let</span> <span class="kw">mut</span> xmlfile = Reader::from_reader(xmlfile);</a>
+<a class="sourceLine" id="cb9-33" data-line-number="33"></a>
+<a class="sourceLine" id="cb9-34" data-line-number="34">    <span class="kw">let</span> <span class="kw">mut</span> buf = <span class="dt">Vec</span>::with_capacity(BUF_SIZE);</a>
+<a class="sourceLine" id="cb9-35" data-line-number="35">    <span class="kw">loop</span> <span class="op">{</span></a>
+<a class="sourceLine" id="cb9-36" data-line-number="36">        <span class="kw">match</span> xmlfile.read_event(&amp;<span class="kw">mut</span> buf)? <span class="op">{</span></a>
+<a class="sourceLine" id="cb9-37" data-line-number="37">            Event::Start(e) =&gt; <span class="op">{</span></a>
+<a class="sourceLine" id="cb9-38" data-line-number="38">                <span class="pp">println!</span>(<span class="st">&quot;start {}&quot;</span>, <span class="dt">str</span>::from_utf8(e.local_name())?);</a>
+<a class="sourceLine" id="cb9-39" data-line-number="39">            <span class="op">}</span>,</a>
+<a class="sourceLine" id="cb9-40" data-line-number="40"></a>
+<a class="sourceLine" id="cb9-41" data-line-number="41">            Event::End(e) =&gt; <span class="op">{</span></a>
+<a class="sourceLine" id="cb9-42" data-line-number="42">                <span class="pp">println!</span>(<span class="st">&quot;end {}&quot;</span>, <span class="dt">str</span>::from_utf8(e.local_name())?);</a>
+<a class="sourceLine" id="cb9-43" data-line-number="43">            <span class="op">}</span>,</a>
+<a class="sourceLine" id="cb9-44" data-line-number="44"></a>
+<a class="sourceLine" id="cb9-45" data-line-number="45">            Event::Text(e) =&gt; <span class="op">{</span></a>
+<a class="sourceLine" id="cb9-46" data-line-number="46">                <span class="pp">println!</span>(<span class="st">&quot;text: {}&quot;</span>, <span class="dt">str</span>::from_utf8(&amp;e.unescaped()?)?);</a>
+<a class="sourceLine" id="cb9-47" data-line-number="47">            <span class="op">}</span>,</a>
+<a class="sourceLine" id="cb9-48" data-line-number="48"></a>
+<a class="sourceLine" id="cb9-49" data-line-number="49">            Event::Eof =&gt; <span class="kw">break</span>,</a>
+<a class="sourceLine" id="cb9-50" data-line-number="50"></a>
+<a class="sourceLine" id="cb9-51" data-line-number="51">            _ =&gt; <span class="op">{</span> <span class="op">}</span>,</a>
+<a class="sourceLine" id="cb9-52" data-line-number="52">        <span class="op">}</span>;</a>
+<a class="sourceLine" id="cb9-53" data-line-number="53">        buf.clear();</a>
+<a class="sourceLine" id="cb9-54" data-line-number="54">    <span class="op">}</span></a>
+<a class="sourceLine" id="cb9-55" data-line-number="55"></a>
+<a class="sourceLine" id="cb9-56" data-line-number="56">    <span class="cn">Ok</span>(())</a>
+<a class="sourceLine" id="cb9-57" data-line-number="57"><span class="op">}</span></a></code></pre>
+<blockquote class="code-output">
+<p><code>file is wcproduction.xml, size 38535541060 bytes</code><br />
+<code>...</code><br />
+<code>start wcproduction</code><br />
+<code>text:</code><br />
+<code>start api_st_cde</code><br />
+<code>text: 30</code><br />
+<code>end api_st_cde</code><br />
+<code>text:</code><br />
+<code>start api_cnty_cde</code><br />
+<code>text: 5</code><br />
+<code>end api_cnty_cde</code><br />
+<code>text:</code><br />
+<code>start api_well_idn</code><br />
+<code>text: 20178</code><br />
+<code>end api_well_idn</code><br />
+<code>text:</code><br />
+<code>start pool_idn</code><br />
+<code>text: 10540</code><br />
+<code>end pool_idn</code><br />
+<code>text:</code><br />
+<code>start prodn_mth</code><br />
+<code>text: 7</code><br />
+<code>end prodn_mth</code><br />
+<code>text:</code><br />
+<code>start prodn_yr</code><br />
+<code>text: 1973</code><br />
+<code>end prodn_yr</code><br />
+<code>text:</code><br />
+<code>start ogrid_cde</code><br />
+<code>text: 12437</code><br />
+<code>end ogrid_cde</code><br />
+<code>text:</code><br />
+<code>start prd_knd_cde</code><br />
+<code>text: G</code><br />
+<code>end prd_knd_cde</code><br />
+<code>text:</code><br />
+<code>start eff_dte</code><br />
+<code>text: 1973-07-31T00:00:00</code><br />
+<code>end eff_dte</code><br />
+<code>text:</code><br />
+<code>start amend_ind</code><br />
+<code>text: N</code><br />
+<code>end amend_ind</code><br />
+<code>text:</code><br />
+<code>start c115_wc_stat_cde</code><br />
+<code>text: F</code><br />
+<code>end c115_wc_stat_cde</code><br />
+<code>text:</code><br />
+<code>start prod_amt</code><br />
+<code>text: 53612</code><br />
+<code>end prod_amt</code><br />
+<code>text:</code><br />
+<code>start prodn_day_num</code><br />
+<code>text: 99</code><br />
+<code>end prodn_day_num</code><br />
+<code>text:</code><br />
+<code>start mod_dte</code><br />
+<code>text: 2015-04-07T07:31:00.173</code><br />
+<code>end mod_dte</code><br />
+<code>text:</code><br />
+<code>end wcproduction</code><br />
+<code>...</code></p>
+</blockquote>
+<p>At this point we can clearly see the structure of each production record. To turn these incremental events into an in-memory structure containing the production data we care about, we’ll build a simple <a href="https://en.wikipedia.org/wiki/Finite-state_machine">state machine</a>.</p>
+<p>Consider the “shape” of each <code>&lt;wcproduction&gt;</code> element. At any point in the file, our parser may be in any of the following states:</p>
+<ul>
+<li>between records (including the span before the first <code>&lt;wcproduction&gt;</code> element)<br />
+</li>
+<li>reading a production record, but before we have a full API number<br />
+</li>
+<li>reading the state code for an API number<br />
+</li>
+<li>reading the county code for an API number<br />
+</li>
+<li>reading the well identifier for an API number<br />
+</li>
+<li>reading a production record, with the API number now known<br />
+</li>
+<li>skipping the remainder of a production record, because we have decided we don’t care about the well using its API number<br />
+</li>
+<li>reading the month of production<br />
+</li>
+<li>reading the year of production<br />
+</li>
+<li>reading the fluid type produced (oil, gas, or water)<br />
+</li>
+<li>reading the production volume</li>
+</ul>
+<p>In Rust, we’ll encode this state into an <code>enum</code> type, and our state machine parser as a <code>struct</code> type:</p>
+<pre class="sourceCode rust" id="cb10"><code class="sourceCode rust"><a class="sourceLine" id="cb10-1" data-line-number="1"><span class="at">#[</span>derive<span class="at">(</span><span class="bu">Copy</span><span class="at">,</span> <span class="bu">Clone</span><span class="at">,</span> <span class="bu">Debug</span><span class="at">)]</span></a>
+<a class="sourceLine" id="cb10-2" data-line-number="2"><span class="kw">enum</span> ParserState <span class="op">{</span></a>
+<a class="sourceLine" id="cb10-3" data-line-number="3">    Between,</a>
+<a class="sourceLine" id="cb10-4" data-line-number="4">    ProductionNeedAPI,</a>
+<a class="sourceLine" id="cb10-5" data-line-number="5">    ReadAPIState,</a>
+<a class="sourceLine" id="cb10-6" data-line-number="6">    ReadAPICounty,</a>
+<a class="sourceLine" id="cb10-7" data-line-number="7">    ReadAPIWell,</a>
+<a class="sourceLine" id="cb10-8" data-line-number="8">    ProductionHaveAPI,</a>
+<a class="sourceLine" id="cb10-9" data-line-number="9">    ProductionSkip,</a>
+<a class="sourceLine" id="cb10-10" data-line-number="10">    ReadMonth,</a>
+<a class="sourceLine" id="cb10-11" data-line-number="11">    ReadYear,</a>
+<a class="sourceLine" id="cb10-12" data-line-number="12">    ReadPhase,</a>
+<a class="sourceLine" id="cb10-13" data-line-number="13">    ReadVolume,</a>
+<a class="sourceLine" id="cb10-14" data-line-number="14"><span class="op">}</span></a>
+<a class="sourceLine" id="cb10-15" data-line-number="15"></a>
+<a class="sourceLine" id="cb10-16" data-line-number="16"><span class="kw">struct</span> WellProductionParser&lt;<span class="ot">&#39;a</span>&gt; <span class="op">{</span></a>
+<a class="sourceLine" id="cb10-17" data-line-number="17">    state: ParserState,</a>
+<a class="sourceLine" id="cb10-18" data-line-number="18">    phase: Phase,</a>
+<a class="sourceLine" id="cb10-19" data-line-number="19">    production: HashMap&lt;WellAPI, HashMap&lt;Date, WellProduction&gt;&gt;,</a>
+<a class="sourceLine" id="cb10-20" data-line-number="20">    current_api: WellAPI,</a>
+<a class="sourceLine" id="cb10-21" data-line-number="21">    current_date: Date,</a>
+<a class="sourceLine" id="cb10-22" data-line-number="22">    api_predicate: <span class="dt">Option</span>&lt;&amp;<span class="ot">&#39;a</span> dyn <span class="bu">Fn</span>(WellAPI) -&gt; <span class="dt">bool</span>&gt;,</a>
+<a class="sourceLine" id="cb10-23" data-line-number="23"><span class="op">}</span></a></code></pre>
+<p>The final result is accumulated into the <code>production</code> member, as a nested hash map which lets us look up production first by well API number, then by date. The parser can optionally hold a predicate function (as a <a href="https://doc.rust-lang.org/stable/book/ch17-02-trait-objects.html">trait object</a>) which it will use to decide whether to process or skip each record based on the API number (for example, to filter to a single county).</p>
+<p>Let’s begin by sketching a “transition diagram” for our state machine. We’ll use arrows to indicate the possible state transitions, and label them with the events which trigger them: <img style="background-color: black" src="/images/xmhell_transition_diagram.png"></p>
+<p>In Rust, we can implement this as a function on our <code>WellProductionParser</code> struct, which consumes an <code>Event</code> from the XML parser, takes the appropriate action for the current state, and updates the state. Here’s an abbreviated version:</p>
+<pre class="sourceCode rust" id="cb11"><code class="sourceCode rust"><a class="sourceLine" id="cb11-1" data-line-number="1"><span class="kw">impl</span>&lt;<span class="ot">&#39;a</span>&gt; WellProductionParser&lt;<span class="ot">&#39;a</span>&gt; <span class="op">{</span></a>
+<a class="sourceLine" id="cb11-2" data-line-number="2">    ...</a>
+<a class="sourceLine" id="cb11-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb11-4" data-line-number="4">    <span class="kw">pub</span> <span class="kw">fn</span> process(&amp;<span class="kw">mut</span> <span class="kw">self</span>, ev: Event) -&gt; <span class="dt">Result</span>&lt;(), <span class="dt">Box</span>&lt;dyn Error&gt;&gt; <span class="op">{</span></a>
+<a class="sourceLine" id="cb11-5" data-line-number="5">        <span class="kw">self</span>.state = <span class="kw">match</span> <span class="kw">self</span>.state <span class="op">{</span></a>
+<a class="sourceLine" id="cb11-6" data-line-number="6">            ParserState::Between =&gt; <span class="op">{</span></a>
+<a class="sourceLine" id="cb11-7" data-line-number="7">                <span class="kw">match</span> ev <span class="op">{</span></a>
+<a class="sourceLine" id="cb11-8" data-line-number="8">                    Event::Start(e) <span class="kw">if</span> e.local_name() == b<span class="st">&quot;wcproduction&quot;</span> =&gt;</a>
+<a class="sourceLine" id="cb11-9" data-line-number="9">                        ParserState::ProductionNeedAPI,</a>
+<a class="sourceLine" id="cb11-10" data-line-number="10">                    _ =&gt; ParserState::Between,</a>
+<a class="sourceLine" id="cb11-11" data-line-number="11">                <span class="op">}</span></a>
+<a class="sourceLine" id="cb11-12" data-line-number="12">            <span class="op">}</span>,</a>
+<a class="sourceLine" id="cb11-13" data-line-number="13"></a>
+<a class="sourceLine" id="cb11-14" data-line-number="14">            ParserState::ProductionNeedAPI =&gt; <span class="op">{</span></a>
+<a class="sourceLine" id="cb11-15" data-line-number="15">                <span class="kw">match</span> ev <span class="op">{</span></a>
+<a class="sourceLine" id="cb11-16" data-line-number="16">                    Event::Start(e) =&gt; <span class="kw">match</span> e.local_name() <span class="op">{</span></a>
+<a class="sourceLine" id="cb11-17" data-line-number="17">                        b<span class="st">&quot;api_st_cde&quot;</span> =&gt; ParserState::ReadAPIState,</a>
+<a class="sourceLine" id="cb11-18" data-line-number="18">                        b<span class="st">&quot;api_cnty_cde&quot;</span> =&gt; ParserState::ReadAPICounty,</a>
+<a class="sourceLine" id="cb11-19" data-line-number="19">                        b<span class="st">&quot;api_well_idn&quot;</span> =&gt; ParserState::ReadAPIWell,</a>
+<a class="sourceLine" id="cb11-20" data-line-number="20">                        _ =&gt; ParserState::ProductionNeedAPI,</a>
+<a class="sourceLine" id="cb11-21" data-line-number="21">                    <span class="op">}</span>,</a>
+<a class="sourceLine" id="cb11-22" data-line-number="22"></a>
+<a class="sourceLine" id="cb11-23" data-line-number="23">                    _ =&gt; ParserState::ProductionNeedAPI,</a>
+<a class="sourceLine" id="cb11-24" data-line-number="24">                <span class="op">}</span></a>
+<a class="sourceLine" id="cb11-25" data-line-number="25">            <span class="op">}</span>,</a>
+<a class="sourceLine" id="cb11-26" data-line-number="26"></a>
+<a class="sourceLine" id="cb11-27" data-line-number="27">            ...</a>
+<a class="sourceLine" id="cb11-28" data-line-number="28">        <span class="op">}</span>;</a>
+<a class="sourceLine" id="cb11-29" data-line-number="29"></a>
+<a class="sourceLine" id="cb11-30" data-line-number="30">        <span class="cn">Ok</span>(())</a>
+<a class="sourceLine" id="cb11-31" data-line-number="31">    <span class="op">}</span></a>
+<a class="sourceLine" id="cb11-32" data-line-number="32"><span class="op">}</span></a></code></pre>
+<p>With the state-machine based parser up and running, the last step is simply to provide tabular output for the collected data. We’ll write tab-separated text, which can be easily copied and pasted into a spreadsheet, or processed by other programs. We’ll also sort the production for each well by date—the XML is not necessarily in order.</p>
+<pre class="sourceCode rust" id="cb12"><code class="sourceCode rust"><a class="sourceLine" id="cb12-1" data-line-number="1"><span class="kw">fn</span> write_table(w: &amp;<span class="kw">mut</span> <span class="kw">impl</span> Write,</a>
+<a class="sourceLine" id="cb12-2" data-line-number="2">  production: &amp;HashMap&lt;WellAPI, HashMap&lt;Date, WellProduction&gt;&gt;</a>
+<a class="sourceLine" id="cb12-3" data-line-number="3">  ) -&gt; io::<span class="dt">Result</span>&lt;()&gt; <span class="op">{</span></a>
+<a class="sourceLine" id="cb12-4" data-line-number="4">    <span class="pp">write!</span>(w, <span class="st">&quot;api</span><span class="sc">\t</span><span class="st">year</span><span class="sc">\t</span><span class="st">month</span><span class="sc">\t</span><span class="st">oil</span><span class="sc">\t</span><span class="st">gas</span><span class="sc">\t</span><span class="st">water</span><span class="sc">\n</span><span class="st">&quot;</span>)?;</a>
+<a class="sourceLine" id="cb12-5" data-line-number="5">    <span class="kw">for</span> (api, by_date) <span class="kw">in</span> production <span class="op">{</span></a>
+<a class="sourceLine" id="cb12-6" data-line-number="6">        <span class="kw">let</span> <span class="kw">mut</span> dates: <span class="dt">Vec</span>&lt;_&gt; = by_date.keys().collect();</a>
+<a class="sourceLine" id="cb12-7" data-line-number="7">        dates.sort();</a>
+<a class="sourceLine" id="cb12-8" data-line-number="8">        <span class="kw">for</span> date <span class="kw">in</span> dates <span class="op">{</span></a>
+<a class="sourceLine" id="cb12-9" data-line-number="9">            <span class="pp">write!</span>(w, <span class="st">&quot;{}</span><span class="sc">\t</span><span class="st">{}</span><span class="sc">\t</span><span class="st">{}&quot;</span>, api, date.year, date.month)?;</a>
+<a class="sourceLine" id="cb12-10" data-line-number="10">            <span class="kw">let</span> vols = &amp;by_date<span class="op">[</span>date<span class="op">]</span>;</a>
+<a class="sourceLine" id="cb12-11" data-line-number="11"></a>
+<a class="sourceLine" id="cb12-12" data-line-number="12">            <span class="kw">if</span> <span class="kw">let</span> <span class="cn">Some</span>(oil) = vols.oil <span class="op">{</span></a>
+<a class="sourceLine" id="cb12-13" data-line-number="13">                <span class="pp">write!</span>(w, <span class="st">&quot;</span><span class="sc">\t</span><span class="st">{}&quot;</span>, oil)?;</a>
+<a class="sourceLine" id="cb12-14" data-line-number="14">            <span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></a>
+<a class="sourceLine" id="cb12-15" data-line-number="15">                <span class="pp">write!</span>(w, <span class="st">&quot;</span><span class="sc">\t</span><span class="st">&quot;</span>)?;</a>
+<a class="sourceLine" id="cb12-16" data-line-number="16">            <span class="op">}</span></a>
+<a class="sourceLine" id="cb12-17" data-line-number="17"></a>
+<a class="sourceLine" id="cb12-18" data-line-number="18">            <span class="kw">if</span> <span class="kw">let</span> <span class="cn">Some</span>(gas) = vols.gas <span class="op">{</span></a>
+<a class="sourceLine" id="cb12-19" data-line-number="19">                <span class="pp">write!</span>(w, <span class="st">&quot;</span><span class="sc">\t</span><span class="st">{}&quot;</span>, gas)?;</a>
+<a class="sourceLine" id="cb12-20" data-line-number="20">            <span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></a>
+<a class="sourceLine" id="cb12-21" data-line-number="21">                <span class="pp">write!</span>(w, <span class="st">&quot;</span><span class="sc">\t</span><span class="st">&quot;</span>)?;</a>
+<a class="sourceLine" id="cb12-22" data-line-number="22">            <span class="op">}</span></a>
+<a class="sourceLine" id="cb12-23" data-line-number="23"></a>
+<a class="sourceLine" id="cb12-24" data-line-number="24">            <span class="kw">if</span> <span class="kw">let</span> <span class="cn">Some</span>(water) = vols.water <span class="op">{</span></a>
+<a class="sourceLine" id="cb12-25" data-line-number="25">                <span class="pp">write!</span>(w, <span class="st">&quot;</span><span class="sc">\t</span><span class="st">{}</span><span class="sc">\n</span><span class="st">&quot;</span>, water)?;</a>
+<a class="sourceLine" id="cb12-26" data-line-number="26">            <span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></a>
+<a class="sourceLine" id="cb12-27" data-line-number="27">                <span class="pp">write!</span>(w, <span class="st">&quot;</span><span class="sc">\t\n</span><span class="st">&quot;</span>)?;</a>
+<a class="sourceLine" id="cb12-28" data-line-number="28">            <span class="op">}</span></a>
+<a class="sourceLine" id="cb12-29" data-line-number="29">        <span class="op">}</span></a>
+<a class="sourceLine" id="cb12-30" data-line-number="30">    <span class="op">}</span></a>
+<a class="sourceLine" id="cb12-31" data-line-number="31">    <span class="cn">Ok</span>(())</a>
+<a class="sourceLine" id="cb12-32" data-line-number="32"><span class="op">}</span></a></code></pre>
+<p>Our final <code>main</code> looks like this, now applying a predicate which filters using API numbers to select only wells in Eddy County:</p>
+<pre class="sourceCode rust" id="cb13"><code class="sourceCode rust"><a class="sourceLine" id="cb13-1" data-line-number="1"><span class="kw">fn</span> main() -&gt; <span class="dt">Result</span>&lt;(), <span class="dt">Box</span>&lt;dyn Error&gt;&gt; <span class="op">{</span></a>
+<a class="sourceLine" id="cb13-2" data-line-number="2">    <span class="kw">let</span> path = env::args().nth(<span class="dv">1</span>).ok_or(<span class="st">&quot;no filename provided&quot;</span>)?;</a>
+<a class="sourceLine" id="cb13-3" data-line-number="3">    <span class="kw">let</span> zipfile = File::open(path)?;</a>
+<a class="sourceLine" id="cb13-4" data-line-number="4">    <span class="kw">let</span> <span class="kw">mut</span> zip = ZipArchive::new(zipfile)?;</a>
+<a class="sourceLine" id="cb13-5" data-line-number="5"></a>
+<a class="sourceLine" id="cb13-6" data-line-number="6">    <span class="kw">if</span> zip.len() != <span class="dv">1</span> <span class="op">{</span></a>
+<a class="sourceLine" id="cb13-7" data-line-number="7">        <span class="cn">Err</span>(<span class="st">&quot;expected one file in zip archive&quot;</span>)?;</a>
+<a class="sourceLine" id="cb13-8" data-line-number="8">    <span class="op">}</span></a>
+<a class="sourceLine" id="cb13-9" data-line-number="9"></a>
+<a class="sourceLine" id="cb13-10" data-line-number="10">    <span class="kw">let</span> xmlfile = zip.by_index(<span class="dv">0</span>)?;</a>
+<a class="sourceLine" id="cb13-11" data-line-number="11">    <span class="kw">let</span> xmlfile = BufReader::new(DecodeReaderBytes::new(xmlfile));</a>
+<a class="sourceLine" id="cb13-12" data-line-number="12">    <span class="kw">let</span> <span class="kw">mut</span> xmlfile = Reader::from_reader(xmlfile);</a>
+<a class="sourceLine" id="cb13-13" data-line-number="13"></a>
+<a class="sourceLine" id="cb13-14" data-line-number="14">    <span class="kw">let</span> <span class="kw">mut</span> prodparser = WellProductionParser::with_predicate(</a>
+<a class="sourceLine" id="cb13-15" data-line-number="15">        &amp;|api: WellAPI| api.county == EDDY_COUNTY);</a>
+<a class="sourceLine" id="cb13-16" data-line-number="16">    <span class="kw">let</span> <span class="kw">mut</span> buf = <span class="dt">Vec</span>::with_capacity(BUF_SIZE);</a>
+<a class="sourceLine" id="cb13-17" data-line-number="17">    <span class="kw">loop</span> <span class="op">{</span></a>
+<a class="sourceLine" id="cb13-18" data-line-number="18">        <span class="kw">match</span> xmlfile.read_event(&amp;<span class="kw">mut</span> buf)? <span class="op">{</span></a>
+<a class="sourceLine" id="cb13-19" data-line-number="19">            Event::Eof =&gt; <span class="kw">break</span>,</a>
+<a class="sourceLine" id="cb13-20" data-line-number="20">            ev =&gt; prodparser.process(ev)?,</a>
+<a class="sourceLine" id="cb13-21" data-line-number="21">        <span class="op">}</span>;</a>
+<a class="sourceLine" id="cb13-22" data-line-number="22">        buf.clear();</a>
+<a class="sourceLine" id="cb13-23" data-line-number="23">    <span class="op">}</span></a>
+<a class="sourceLine" id="cb13-24" data-line-number="24"></a>
+<a class="sourceLine" id="cb13-25" data-line-number="25">    <span class="kw">let</span> prod = prodparser.finish();</a>
+<a class="sourceLine" id="cb13-26" data-line-number="26">    write_table(&amp;<span class="kw">mut</span> io::stdout(), &amp;prod)?;</a>
+<a class="sourceLine" id="cb13-27" data-line-number="27"></a>
+<a class="sourceLine" id="cb13-28" data-line-number="28">    <span class="cn">Ok</span>(())</a>
+<a class="sourceLine" id="cb13-29" data-line-number="29"><span class="op">}</span></a></code></pre>
+<p>On my “workstation”, this runs in a couple of minutes and extracts a 92MB tab-separated file from the ZIP archive. Not bad!</p>
+<p>The entire source code for this project can be found on GitHub at <a href="https://github.com/derrickturk/ocd_production">https://github.com/derrickturk/ocd_production</a>. Please feel free to adapt it to your own purposes.</p>
+<section class="footnotes">
+<hr />
+<ol>
+<li id="fn1"><p>The dawn of time appears to have been some time in the early 1990s.<a href="#fnref1" class="footnote-back">↩</a></p></li>
+<li id="fn2"><p>If you ever want proof of Solzhenitsyn’s assertion that “the line separating good and evil passes… right through every human heart”, consider that one man is directly responsible for both UTF-8 and the Go programming language.<a href="#fnref2" class="footnote-back">↩</a></p></li>
+</ol>
+</section>
+
+        <!--#include file="/include/after.html" -->
+    </body>
+</html>
