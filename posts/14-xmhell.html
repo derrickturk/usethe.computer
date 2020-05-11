@@ -20,7 +20,7 @@
 <p>Instead, we’ll use a streaming approach (the XML folks call this “SAX”, for reasons I didn’t care enough to research). In this approach, we’ll parse the document incrementally and receive results via an event-based API. This will let us only handle the data we care about, and minimize the amount we need to keep in memory at once.</p>
 <p>For good performance on this “huge” data set, and to leverage an easily-accessible ecosystem of libraries which includes both streaming ZIP archive handling and high-performance streaming XML parsers, we’ll write a data extraction program in the <a href="https://www.rust-lang.org/">Rust</a> programming language.</p>
 <h3 class="title">(Re)Write It In Rust</h3>
-<p><img width="400px" src="/images/resf.png"></p>
+<p><img class="centered" alt="Rust Evangelism Strike Force logo" width="400px" src="/images/resf.png"></p>
 <p>I’m not going to belabor the reasons Rust is exciting here. It’s a statically-typed, compiled language with a nice mix of performance and control, expressiveness, and safety. I find it to be a nice choice for the sorts of “systems programming” tasks in which I might also use C or C++, but the build tools and package management system (<a href="https://crates.io">Cargo</a>) also make it a viable choice for these sorts of “script-like” programs, especially when performance may be an issue.</p>
 <p>Let’s begin by creating a new Rust project using Cargo. We want a program (binary), not a library:</p>
 <pre><code>$ cargo new ocd_production --bin</code></pre>
@@ -32,8 +32,6 @@ name = &quot;ocd_production&quot;
 version = &quot;0.1.0&quot;
 authors = [&quot;Derrick W. Turk &lt;dwt@terminusdatascience.com&gt;&quot;]
 edition = &quot;2018&quot;
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 zip = &quot;0.5.5&quot;</code></pre>
@@ -134,14 +132,12 @@ zip = &quot;0.5.5&quot;</code></pre>
 <p>This let the Windows and Java people patch up their systems, but it’s sort of unsatisfying: once we’ve accepted the need for a variable-width encoding, why are we still wasting two bytes per character even for the Latin alphabet? This line of reasoning led directly to UTF-8<a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a>, which uses ordinary one-byte characters in a variable-width encoding scheme to faithfully represent all of Unicode while preserving compatibility with ASCII.</p>
 <p>Returning from our digression into computational Babel, we spot the other issue with “wide characters” which we’ve directly encountered in our XML file. Our modern computer architectures are “byte-oriented”: we’ve achieved a sort of rough consensus that everything should be able to work on atomic units of 8 bits. However, almost all interesting quantities are larger: we work with 64-bit (8 byte) addresses, 16-bit (2 byte) UCS-2 characters, and so forth. How shall we represent these inside a world of sequentially-addressed bytes? We have two main choices: least-significant byte first (“little-endian”) or most-significant byte first (“big-endian”). Different CPU architectures made different choices, and so when we share UCS-2 or UTF-16 text we need a way to tell which byte order the text was encoded with. That’s the purpose of the BOM we saw at the beginning of our file: since the Unicode-mandated value of <code>0xFEFF</code> has appeared in our file as <code>0xFF 0xFE</code>, we know that this file was encoded with a little-endian byte order.</p>
 <p>Very fortunately for us, we can use a library to take care of all of this for us. The <a href="https://crates.io/crates/encoding_rs"><code>encoding_rs</code></a> and <a href="https://crates.io/crates/encoding_rs_io"><code>encoding_rs_io</code></a> libraries will let us translate from UTF-16 to UTF-8 on the fly, which will let us send ordinary Rust strings into our XML parser.</p>
-<p>We will update `Cargo.toml’:</p>
+<p>We will update <code>Cargo.toml</code>:</p>
 <pre><code>[package]
 name = &quot;ocd_production&quot;
 version = &quot;0.1.0&quot;
 authors = [&quot;Derrick W. Turk &lt;dwt@terminusdatascience.com&gt;&quot;]
 edition = &quot;2018&quot;
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 encoding_rs = &quot;0.8.22&quot;
@@ -201,8 +197,6 @@ name = &quot;ocd_production&quot;
 version = &quot;0.1.0&quot;
 authors = [&quot;Derrick W. Turk &lt;dwt@terminusdatascience.com&gt;&quot;]
 edition = &quot;2018&quot;
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 encoding_rs = &quot;0.8.22&quot;
@@ -346,7 +340,7 @@ zip = &quot;0.5.5&quot;</code></pre>
 </li>
 <li>reading a production record, with the API number now known<br />
 </li>
-<li>skipping the remainder of a production record, because we have decided we don’t care about the well using its API number<br />
+<li>skipping the remainder of a production record, due to its API number<br />
 </li>
 <li>reading the month of production<br />
 </li>
@@ -381,7 +375,7 @@ zip = &quot;0.5.5&quot;</code></pre>
 <a class="sourceLine" id="cb10-22" data-line-number="22">    api_predicate: <span class="dt">Option</span>&lt;&amp;<span class="ot">&#39;a</span> dyn <span class="bu">Fn</span>(WellAPI) -&gt; <span class="dt">bool</span>&gt;,</a>
 <a class="sourceLine" id="cb10-23" data-line-number="23"><span class="op">}</span></a></code></pre>
 <p>The final result is accumulated into the <code>production</code> member, as a nested hash map which lets us look up production first by well API number, then by date. The parser can optionally hold a predicate function (as a <a href="https://doc.rust-lang.org/stable/book/ch17-02-trait-objects.html">trait object</a>) which it will use to decide whether to process or skip each record based on the API number (for example, to filter to a single county).</p>
-<p>Let’s begin by sketching a “transition diagram” for our state machine. We’ll use arrows to indicate the possible state transitions, and label them with the events which trigger them: <img style="background-color: black" src="/images/xmhell_transition_diagram.png"></p>
+<p>Let’s begin by sketching a “transition diagram” for our state machine. We’ll use arrows to indicate the possible state transitions, and label them with the events which trigger them: <img class="centered" alt="transition diagram" src="/images/xmhell_transition_diagram.png"></p>
 <p>In Rust, we can implement this as a function on our <code>WellProductionParser</code> struct, which consumes an <code>Event</code> from the XML parser, takes the appropriate action for the current state, and updates the state. Here’s an abbreviated version:</p>
 <pre class="sourceCode rust" id="cb11"><code class="sourceCode rust"><a class="sourceLine" id="cb11-1" data-line-number="1"><span class="kw">impl</span>&lt;<span class="ot">&#39;a</span>&gt; WellProductionParser&lt;<span class="ot">&#39;a</span>&gt; <span class="op">{</span></a>
 <a class="sourceLine" id="cb11-2" data-line-number="2">    ...</a>

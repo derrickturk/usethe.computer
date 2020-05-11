@@ -126,11 +126,10 @@ blockquote.code-output {
     border-radius: 5px;
 }
 
-/*
-img.inline-right {
-    float: right;
+img.centered {
+    margin: 25px auto;
+    display: block;
 }
-*/
 
 .gist-data {
     max-height: 250px;
