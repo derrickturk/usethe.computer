@@ -10,6 +10,19 @@
 
         <div class="linkcerpt">
             <div class="linkcerpt-header">
+                <h3 class="title"><a href="/posts/14-xmhell.html">
+                        XMHell: Handling 38GB of UTF-16 XML with Rust
+                </a></h3>
+                <h4 class="date">2020-05-11</h4>
+            </div>
+            <p>A couple weekends ago, I found myself with the desire to fetch oil and gas production data for a specific county in New Mexico from the <a href="http://www.emnrd.state.nm.us/OCD/">New Mexico Oil Conservation Division</a> (OCD).</p>
+            <p>Fortunately, the OCD provides access to historical well production via an FTP server. I worked out that I needed to download <code>/Public/OCD/OCD Interface v1.1/volumes/wcproduction/wcproduction.zip</code>… and then my fortune ran out.</p>
+            <p>The first thing I noticed was the file size. The OCD doesn’t seem to provide a way to query a limited time- or area-based subset of production history data, so we’re stuck with a single zip file for “all of New Mexico since the dawn of time”<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a>. The result is a whopping 712MB ZIP file.</p>
+            <p>Here’s where I knew I was in trouble: the only thing inside was a single 38 GB file called <code>wcproduction.xml</code>.</p>
+        </div>
+
+        <div class="linkcerpt">
+            <div class="linkcerpt-header">
                 <h3 class="title"><a href="/posts/13-typing-groupby-revisited.html">
                         Typing <code>group by</code>, Revisited
                 </a></h3>
