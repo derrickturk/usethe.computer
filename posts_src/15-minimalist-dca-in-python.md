@@ -295,9 +295,148 @@ We can see the hyperbolic (orange), harmonic (green), and exponential (blue) cas
 <!-- TODO /.. -->
 <img alt="example plots" src="images/pydca_examples.png">
 
-### implementation pt 2: fitting
+### Implementation II: Fitting
+Now that we can evaluate rate vs. time forecasts for given decline parameters, we need to build a way to find error-minimizing values of these parameters from observed data.
+This will require two things: first, a representation for the actual data to be fit; and second, a method for finding the best-fit parameters.
 
-### implementation pt 3: parsing
+The first piece will come from another `dataclass` we'll write to store daily oil rate data for a given well.
+We'll provide this class with methods which implement best-fitting.
+The fitting will be accomplished using the `scipy.optimize.minimize` function, which provides an interface to several different optimization algorithms.
+Since our problem has physical bounds (for example, values of *b* above 2.0 don't make sense), we'll use the <a href="https://en.wikipedia.org/wiki/Limited-memory_BFGS#L-BFGS-B">L-BFGS-B</a> algorithm for efficient bounded optimization by a quasi-Newton method.
+This is a good choice for common bounded optimization problems where the bounds are independent for each variable ("box constraints").
+
+The specific quantity we'll minimize is the sum of squared error (SSE) of the fit vs. the observed data.
+This is not necessarily the best choice of *cost function*, although it is certainly the most common.
+SSE will give high influence to the most extreme values in our data---for typical profiles, this means we'll be much more strongly influenced by early production than late.
+
+Absolute error (L1) functions yield more "balanced" behavior, but have awkward problems in gradient evaluation when error is near zero.
+There are alternative cost functions which provide the "best of both worlds", but that's a deep topic of it's own---and besides, that would dip a little too deeply into "free consulting"!
+
+During the implementation, I discovered that L-BFGS-B as implemented by `scipy` would occasionally try values just barely outside the bounds, which would in turn throw exceptions in the `__post_init__` function of `ArpsDecline`.
+Therefore, I added an "alternate constructor" for `ArpsDecline`s in the form of a `clamped` *static method*, which limits parameter values precisely to the valid range.
+
+The entire program so far, now including a class for per-well rate/time data with methods for fitting:
+```python
+import numpy as np
+import matplotlib.pyplot as plt # type: ignore
+from scipy.optimize import minimize # type: ignore
+
+import dataclasses as dc
+
+from typing import List, Optional, Tuple
+
+YEAR_DAYS: float = 365.25 # days
+
+_GUESS_DI_NOM: float = 1.0 # nominal annual decline
+_GUESS_B = 1.5
+
+_FIT_BOUNDS: List[Tuple[Optional[float], Optional[float]]] = [
+    (0.0, None), # initial rate
+    (0.0, None), # nominal annual decline
+    (0.0, 2.0),  # b
+]
+
+@dc.dataclass(frozen=True)
+class ArpsDecline:
+    qi: float # daily rate
+    Di_nom: float # nominal annual decline
+    b: float # unitless exponent
+
+    def __post_init__(self):
+        if self.qi < 0.0:
+            raise ValueError('Negative qi')
+        if self.Di_nom < 0.0:
+            raise ValueError('Negative Di_nom')
+        if self.b < 0.0 or self.b > 2.0:
+            raise ValueError(f'Invalid b: {self.b}')
+
+    # time (years)
+    # returns (daily rate)
+    def rate(self, time: np.ndarray) -> np.ndarray:
+        if self.b == 0:
+            return self.qi * np.exp(-self.Di_nom * time)
+        elif self.b == 1.0:
+            return self.qi / (1.0 + self.Di_nom * time)
+        else:
+            return (
+              self.qi / (1.0 + self.b * self.Di_nom * time) ** (1.0 / self.b)
+            )
+
+    @staticmethod
+    def clamped(qi: float, Di_nom: float, b: float) -> 'ArpsDecline':
+        return ArpsDecline(
+            max(qi, 0.0),
+            max(Di_nom, 0.0),
+            max(min(b, 2.0), 0.0),
+        )
+
+@dc.dataclass(frozen=True)
+class DailyOil:
+    api: str
+    days_on: np.ndarray # time (days)
+    oil: np.ndarray # daily rate
+
+    def __post_init__(self):
+        if len(self.days_on) != len(self.oil):
+            raise ValueError('Different lengths for days on and oil rate')
+
+    def best_fit(self) -> ArpsDecline:
+        initial_guess = np.array([
+            np.max(self.oil), # guess qi = peak rate
+            _GUESS_DI_NOM,
+            _GUESS_B,
+        ])
+
+        fit = minimize(
+                lambda params: self._sse(ArpsDecline.clamped(*params)),
+                initial_guess, method='L-BFGS-B', bounds=_FIT_BOUNDS)
+        return ArpsDecline.clamped(*fit.x)
+
+    # sum of squared error for a given fit to this data
+    def _sse(self, fit: ArpsDecline) -> float:
+        time_years = self.days_on / YEAR_DAYS
+        forecast = fit.rate(time_years)
+        return np.sum((forecast - self.oil) ** 2)
+```
+
+L-BFGS-B requires an initial guess for the value of each parameter; they don't have to be very good guesses.
+We hard-code guesses for initial decline and hyperbolic exponent, and guess initial rate from the highest observed rate.
+
+`mypy` doesn't know enough about `ndarray`s to actually know that `initial_guess` and subsequent parameter arrays will unpack into exactly three `float`s in `ArpsDecline.clamped(*params)`, but it's "conservative" in the sense that if something could work, it often assumes it will, so we don't get any warnings here.
+
+The `Optional` type will come up again---it's the exception I mentioned earlier.
+In `mypy` terms, `Optional[int]` is equivalent to `Union[int, None]`; it represents either a value of the given type or `None`.
+For example, we can write (with `mypy`'s blessing):
+```python
+x: Optional[int]
+x = 3
+x = None
+x = 5
+```
+
+We're just about ready for our code to encounter real-world data.
+
+### Implementation III: Parsing and Converting Monthly Data
+<a href="/posts/14-xmhell.html">Last week</a> we retrieved monthly volume data for Eddy County, New Mexico.
+I've extracted a subset of this data for example use, which can be found in `data/eddy.zip` in the project <a href="https://github.com/derrickturk/pydca">GitHub repository</a>.
+
+Inside the ZIP archive is a tab-separated value (TSV) file.
+Each row follows the same format:
+
+api         year    month oil   gas    water
+---         ----    ----- ----  -----  -----
+3001529417  1997    2     2790  10156  2353
+3001529417  1997    5     1457  10155  2353
+3001529417  1997    6      103  2449   322
+...
+
+The oil, gas, and water entries may each be present or absent (blank).
+We will only work with the oil data for our example.
+
+Notice that these are monthly volumes, not daily production rates.
+While it's possible to directly fit a volume vs. time (or rather, cumulative production vs. time) relation, it's more computationally intensive.
+From experience, we can achieve very similar fits (within a percent or two relative error) by fitting a rate vs. time relation to monthly data, treating each monthly volume as the equivalent average daily rate, and placing its occurrence exactly half-way through the month.
+We'll need to write code to handle this translation.
 
 ### results
 
