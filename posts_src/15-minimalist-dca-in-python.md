@@ -222,6 +222,12 @@ The math itself isn't very interesting.
 It's a direct translation of the Arps equations for the hyperbolic, harmonic, and exponential cases, dispatched on the value of *b*.
 We use ordinary Python arithmetic operators (`*`, `**`, etc.), but rely on the fact that `numpy` *overloads* these for arrays to provide efficient vectorized operations.
 
+I've chosen to store a nominal decline rather than an effective decline, because that's what the Arps equations actually work with.
+For a good reference on how to convert between nominal and the various flavors of effective decline, see <a href="https://spee.org/sites/spee.org/files/wp-files/pdf/ReferencesResources/REP06-DeclineCurves.pdf">SPEE REP #6</a>.
+Throughout the code, we'll use the convention that rates will be in units of barrels of oil per day, volumes will be in units of barrels of oil, declines will be nominal annual declines, and times will be in (fractional) years.
+I've found this to be a helpful set of units which, in my experience, best balances suitability for calculation with ease of data entry and human verification.
+(If "mismatched" units bother you, the oil and gas industry may not be the place for you.)
+
 We indicate this in the *type signature* of the `rate` function.
 These type annotations are not used by the Python interpreter during code execution, but are available to tools like `mypy`.
 For functions, we write
@@ -284,7 +290,8 @@ Assuming we've saved the code so far as `pydca.py`, we can typecheck it with `my
 We can run the program with `python pydca.py` to generate the example plots.
 If you installed Python without the Tcl/Tk libraries, you'll want to set the environment variable `MPLBACKEND` to `agg` beforehand (on Windows, do this with `MPLBACKEND=agg`).
 
-An image should be written to `examples.png`:  
+An image should be written to `examples.png`.
+We can see the hyperbolic (orange), harmonic (green), and exponential (blue) cases plotted, and the behavior looks correct (note that the vertical axis is on a logarithmic scale).  
 <!-- TODO /.. -->
 <img alt="example plots" src="images/pydca_examples.png">
 
