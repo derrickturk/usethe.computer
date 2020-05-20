@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <!--#set var="title" value="Minimalist DCA in Python" -->
+        <!--#include file="/include/head.html" -->
+    </head>
+    <body>
+        <!--#include file="/include/before.html" -->
+        <h2 class="title">Minimalist DCA in Python</h2>
+        <h3 class="date">2020-05-20</h3>
+
+<p>It’s important, as a rule of thumb, when operating or investing in a firm which produces a physical commodity, to have the ability to reliably quantify the expected future production of the commodity given the firm’s assets. In the oil and gas industry, we have many different ways to forecast future production from an oil or gas well. Some rely on <a href="https://petrowiki.org/Pressure_transient_testing">detailed measurements</a> and explicitly incorporate <a href="https://petrowiki.org/Reservoir_simulation">detailed mathematical models of flow physics</a>. Others use whatever historical data we can scrape together and a bit of curve-fitting.</p>
+<p>Today, we’re talking about the second kind.</p>
+<h3 class="title">Arps DCA in a Nutshell</h3>
+<p>Sophisticated approaches are great for the operator, who should have access to daily or higher-resolution rate and pressure data and a detailed understanding of the well and completion design. For us on the outside, trying to put a value on an operator’s assets, we’re usually limited to “public data”: for instance, the monthly volume data for Eddy County, New Mexico which we retrieved <a href="/posts/14-xmhell.html">previously</a>.</p>
+<p>This nudges us toward applying empirical <a href="https://petrowiki.org/Production_forecasting_decline_curve_analysis">decline-curve analysis</a> (DCA). DCA is all about curve-fitting: we know, from experience, the rough functional forms which should characterize the rate vs. time relation for oil and gas wells; we’ll apply optimization algorithms to find parameters to these functions which best fit the observed data. We can then use the best-fit parameters to forecast future production.</p>
+<p>There is infinite nuance to be explored in this topic, very little of which we’ll discuss in today’s article. The short version is this: in the early 1940s, while physicists in New Mexico toiled perfecting the most destructive weapon in human history, J. J. Arps at the British-American Oil Company (now Gulf Canada) was researching and documenting a “weapon” which would arguably—eventually—result in a similarly spectacular destruction of capital in the late 2010s. Sarcasm aside, Arps published several papers which changed the oil and gas industry permanently. He documented that production from flowing oil and gas wells tended to follow one of a few different functional forms (<em>exponential</em>, <em>harmonic</em>, or <em>hyperbolic</em>) depending on the details of the fluid being produced and the reservoir physics. These equations were straightforward to fit to observed data even using the technology of the day (that is, graph paper).</p>
+<p>Like atomic energy, the Arps equations can be used for both beneficial and destructive purposes. When applied with good sense by trained engineers in appropriate situations, Arps decline fits are completely adequate for forecasting production; indeed they are the most commonly used tool for estimating reserves for publicly-traded oil and gas companies. Notice the caveats. The advent of “unconventionals” (shale gas, shale oil, coalbed methane, etc.) throws a kink into the key assumptions. Specifically, without going into too much detail (ask an <em>active</em> reservoir engineer!), wells in these assets generally experience multiple <em>flow regimes</em>, each observable on an economically material timescale, which alter the functional form required to correctly fit the rate vs. time data.</p>
+<p>That is, a hydraulically-fractured horizontal shale oil well may begin production on an apparent Arps hyperbolic decline with a <em>b</em> exponent of 2.0; but it may begin to follow something closer to a hyperbolic decline with a <em>b</em> of 0.5, or even an exponential decline, within the first year. A naïve curve fit, especially to early data, can result in a shockingly overstated <em>estimated ultimate recovery</em> (EUR). In my opinion, this underappreciated—especially by investors—phenomenon is responsible for a large portion of the gap between producers’ investor relations statements and reality, and the frequent reserves write-downs, in recent years.</p>
+<p>Plenty of smart people have worked on this problem, and good solutions exist. There are a number of decline curve models which account for multiple flow regimes; for example, my friend David Fulford has published extensively on the <a href="https://www.onepetro.org/conference-paper/SPE-167242-MS">transient hyperbolic relation</a> as well as <a href="https://www.onepetro.org/conference-paper/SPE-174784-MS">Bayesian techniques</a> for fitting it probabilistically (disclosure: I’m a co-author on that one).</p>
+<p>Unfortunately, to keep things simple today, we’ll just be using the original Arps relations. As you examine the results, look for fits which illustrate these problems. This is still a common practice in industry: you may draw your own implications.</p>
+<h3 class="title">I Will Face Guido and Walk Backwards Into Hell</h3>
+<blockquote>
+<p>…in many cultures, the python is seen as a strong and powerful creature.<br />
+–Wikipedia</p>
+</blockquote>
+<p>Now that I’ve complained about Arps decline-curve analysis but decided to use it anyway, I’m going to do the same about Python! Engineering is, for the most part, a quantitative discipline which demands a certain degree of rigor. Naturally, we seem to have converged on learning a programming language which is pig-slow for numeric code “out of the box” and where more-or-less anything goes, with minimal facilities for automating the task of validating the correctness of our code.</p>
+<p>As a famous Vorlon once said, “the avalanche has already begun; it is too late for the pebbles to vote”. So, given that Python seems to be the new incumbent language of engineering automation (at least it is an improvement on Excel VBA in some ways—but not all!), we’ll step through the construction of a simple Arps decline-curve forecasting system in Python. We’re going to build something at the scale that a working reservoir engineer or analyst might be able to construct as a prototype: this won’t be an “industrial grade” system, but a sketch of something that’ll get the job done to do quick evaluations of up to a few thousand wells.</p>
+<p>This won’t, however, be the “beginner Python” you’ll frequently see in similar examples online. We are going to take more seriously the concerns of performance and correctness. To get there, we’re going to have to address some key deficiencies of the language.</p>
+<h3 class="title">Deficiency 0: Dependency Management</h3>
+<p>The Python ecosystem’s take on package management and dependency resolution is a hot mess. Most beginners learn how to <code>pip install</code> into the global Python’s packages directory, but that’s a recipe for pain as programs accumulate with mutually incompatible dependency versions. We’ve got a huge variety of half-baked “solutions”: <code>venv</code>, <code>conda</code>, <code>pipenv</code>, <code>poetry</code>… each with their own pain points.</p>
+<p>We’re going to take minimalism as a virtue, and use <code>venv</code> to manage a virtual environment for our project. On Windows, we’ll have to take some extra steps to acquire dependencies, but it’s worth it to avoid the complexity of things like <code>conda</code>.</p>
+<p><a href="https://docs.python.org/3/library/venv.html"><code>venv</code></a> is the successor to the old <code>virtualenv</code>. It’s a relatively simple approach: copy the global Python interpreter to a new directory, set up <code>pip</code> and pals to install packages into that new directory, and configure the user’s environment variables to point to the new system when they run <code>python</code>. There are <a href="https://nixos.org/">cleaner</a> <a href="https://haskellstack.org">ways</a> to <a href="https://doc.rust-lang.org/cargo/">do this</a>, but at least it’s not an <a href="https://anaconda.org">invasive alien ecosystem trying to take over every aspect of Python operation</a>.</p>
+<p>We won’t go into horrifying detail here, but I’ll provide commands to follow along on recent versions of Windows (I know reservoir engineers). You’ll want to download the latest version of Python 3—at time of writing, Python 3.8.3—for your operating system from <a href="https://python.org">python.org</a>, if you don’t already have a version installed. Windows users should note that the default link goes to the 32-bit rather than 64-bit version of Python. No, I don’t know why the hell they do that. You can get the 64-bit version which you almost certainly would rather have by going <a href="https://www.python.org/downloads/windows/">here</a> and choosing one of the “x86-64” options.</p>
+<p>With Python properly installed, we can create a <code>venv</code> for our project. I like to create these in the project’s working directory with the name <code>.venv</code>:</p>
+<pre><code>python -m venv .venv</code></pre>
+<p>Now, we can “activate” the environment with (Windows):</p>
+<pre><code>.venv\Scripts\activate</code></pre>
+<p>or (Unix-likes):</p>
+<pre><code>source .venv/bin/activate</code></pre>
+<p>From this point on (in our current shell session), everything we do will touch only the <code>venv</code>: <code>python</code> will refer to the <code>venv</code>’s Python interpreter; <code>pip install</code> will install into the <code>venv</code>, and so on.</p>
+<p>Should we choose to leave the virtual environment, we can simply run:</p>
+<pre><code>deactivate</code></pre>
+<p>to return to our original configuration.</p>
+<h3 class="title">Deficiency 1: Static Analysis</h3>
+<p>The next problem we’ll address is the lack of tools for ensuring the correctness of our programs. There are many approaches to program correctness, all imperfect. Historically Python’s community has encouraged a reliance on automated testing, but to quote Edsger Dijkstra:</p>
+<blockquote>
+<p>Program testing can be used to show the presence of bugs, but never to show their absence!</p>
+</blockquote>
+<p>Type systems are a common discipline for statically (that is, before the program is run) checking the correctness of programs with respect to desired properties. These properties might include anything from “the program never exhibits undefined behavior (i.e. crashes)” to “the program takes a finite list of input strings, parses them to integers if possible, and produces a same-length list of integers in sorted order as output”.</p>
+<p>Fortunately, there has been significant work on “gradual typing” in recent years, resulting in the introduction of bolt-on typecheckers for “dynamic” languages like Python. The most popular is <code>mypy</code>, which originated at Dropbox and counts Python creator Guido van Rossum among its developers.</p>
+<p><code>mypy</code> is conservative: it implements a relatively simple type system, and allows use of an <code>Any</code> type to hand-wave Python idioms which can’t easily be statically typed. Nonetheless, it’s a powerful tool for catching common programming errors (including things like misspelled variable names, which aren’t usually though of as “type errors”).</p>
+<p>We can install <code>mypy</code> into our virtual environment with:</p>
+<pre><code>pip install mypy</code></pre>
+<p>To typecheck a given program <code>prog.py</code>:</p>
+<pre><code>mypy prog.py</code></pre>
+<h3 class="title">Deficiency 2: Numeric Performance</h3>
+<p>Engineering code is often “numeric”: we want to work efficiently with (approximations of) things like real numbers, vectors, matrices and so on. Python’s built-in data structures are an awkward fit for this sort of code. As an approximation to a vector or matrix, a Python <code>list</code> is a poor substitute for a C or Fortran style array. Python’s <code>list</code>s hold their elements “boxed” behind pointers, so each element access into a <code>list</code> of <code>float</code> follows at least two levels of indirection, compared to a simple calculation of (base address + index * element size) required to index into a contiguous array.</p>
+<p>Additionally, Python’s built in numeric operations are implemented on a “scalar” basis (one value at a time) and have significant overhead due to the requirement for runtime type checking and interpretation. We can loop over sequences and apply these operations element-wise, but we’ll pay this overhead again and again for each element. We’d prefer a representation where we store a type tag along with a contiguous, homogeneous array of elements, and provide efficient compiled-code “vectorized” operations over entire arrays.</p>
+<p>Fortunately, this exact representation is provided by <code>numpy</code>, the library which forms the basis for effectively all serious numerical computing in Python. <code>numpy</code> combines fast compiled libraries for linear algebra and array manipulation with a “Pythonic” API which lets us interact easily with optimized arrays using the same interface as Python’s built-in sequence types.</p>
+<p><code>numpy</code> is easy to install from the Python Package Index on non-Windows operating systems (with <code>pip install numpy</code>). Windows users will want to visit Christoph Gohlke’s site (<a href="https://www.lfd.uci.edu/~gohlke/pythonlibs/">https://www.lfd.uci.edu/~gohlke/pythonlibs/</a>) and download the correct “wheel” for the latest version of “numpy+mkl”, depending on their Python version.</p>
+<p>For example, at time of writing, the latest version available for 64-bit Python 3.8 is <code>numpy-1.18.4+mkl+cp38-cp38-win_amd64.whl</code>. Download this file, then install directly from the downloaded wheel with</p>
+<pre><code>pip install numpy-1.18.4+mkl+cp38-cp38-win_amd64.whl</code></pre>
+<p>substituting the full path to the downloaded wheel.</p>
+<p>We’ll also want to make use of the <code>scipy</code> package, which provides a variety of scientific computing tools built on <code>numpy</code>. Specifically, we’re going to use the library of efficient optimization routines it provides. Users on all platforms should be able to install this with:</p>
+<pre><code>pip install scipy</code></pre>
+<p>We will use <code>matplotlib</code> to visualize our fits.</p>
+<pre><code>pip install matplotlib</code></pre>
+<p>Finally, we’d like <code>mypy</code> to be aware of the types provided by <code>numpy</code>. The <code>numpy</code> project doesn’t officially provide support for this yet, but the <a href="https://github.com/numpy/numpy-stubs"><code>numpy-stubs</code></a> repository contains their work-in-progress implementation, which we’ll install and use. We can install the package directly from GitHub with <code>pip</code>:</p>
+<pre><code>pip install git+https://github.com/numpy/numpy-stubs.git</code></pre>
+<h3 class="title">Deficiency 3: Simple Record Types</h3>
+<p>Python supports user-defined data types through <em>classes</em>. Unfortunately, these often give us “too much”. Object-oriented classes combine data encapsulation and abstraction (which we want) with features like mutability, <a href="/posts/10-open-recursion-the-essence-of-oo.html">dynamic dispatch</a>, and inheritance (which we don’t need).</p>
+<p>This program will deal with simple data: well API numbers, rate and time arrays, and decline parameters. None of these require the more complex features of classes: in fact, we’d prefer to treat them as <a href="https://en.wikipedia.org/wiki/Immutable_object">immutable</a> “bags of data”; immutability is a helpful tool for correctness as it reduces the number of possible program states and prevents important <a href="https://en.wikipedia.org/wiki/Invariant_(mathematics)#Invariants_in_computer_science">program invariants</a> from being yanked out from under us by mutation.</p>
+<p>Python provides a few solutions to this, ranging from hand-written “record classes” to <code>namedtuple</code>. We’ll use the relatively new <a href="https://docs.python.org/3/library/dataclasses.html?highlight=dataclasses#module-dataclasses"><code>dataclasses</code></a> package, which is included with Python since version 3.7.</p>
+<p><code>dataclasses</code> provides a decorator which we can use to turn a class containing member definitions with type annotations into a fully featured “record class” similar to what we might write by hand. It will automatically write constructors (<code>__init__</code>), display functions (<code>__repr__</code>), structural equality comparisons (<code>__eq__</code>), and other common functions for us from our annotated member definitions. We can also use the <code>frozen</code> feature to achieve (alas, dynamically-enforced) immutability.</p>
+<p>With our tools (<code>venv</code>, <code>mypy</code>, <code>numpy</code>, <code>scipy</code>, <code>matplotlib</code>, <code>dataclasses</code>) in place, we are now ready to begin implementation. In this article, we’ll present the implementation a piece at a time, not necessarily in the order in which they occur in the final product but rather in roughly the order we might write them. The completed program can be previewed on GitHub at <a href="https://github.com/derrickturk/pydca">https://github.com/derrickturk/pydca</a>.</p>
+<h3 class="title">Implementation I: Forecasting</h3>
+<p>Let’s begin by writing a <code>dataclass</code> which describes a single Arps hyperbolic fit. The hyperbolic decline subsumes the harmonic (<em>b</em> = 1) and exponential (<em>b</em> = 0) declines as special cases.</p>
+<p>We’ll need to store the three decline parameters (<em>q<sub>i</sub></em>, <em>D<sub>i</sub></em>, and <em>b</em>), and provide functions for evaluating the rate vs. time relation.</p>
+<pre class="sourceCode python" id="cb11"><code class="sourceCode python"><a class="sourceLine" id="cb11-1" data-line-number="1"><span class="im">import</span> numpy <span class="im">as</span> np</a>
+<a class="sourceLine" id="cb11-2" data-line-number="2"><span class="im">import</span> dataclasses <span class="im">as</span> dc</a>
+<a class="sourceLine" id="cb11-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb11-4" data-line-number="4"><span class="at">@dc.dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</a>
+<a class="sourceLine" id="cb11-5" data-line-number="5"><span class="kw">class</span> ArpsDecline:</a>
+<a class="sourceLine" id="cb11-6" data-line-number="6">    qi: <span class="bu">float</span> <span class="co"># daily rate</span></a>
+<a class="sourceLine" id="cb11-7" data-line-number="7">    Di_nom: <span class="bu">float</span> <span class="co"># nominal annual decline</span></a>
+<a class="sourceLine" id="cb11-8" data-line-number="8">    b: <span class="bu">float</span> <span class="co"># unitless exponent</span></a>
+<a class="sourceLine" id="cb11-9" data-line-number="9"></a>
+<a class="sourceLine" id="cb11-10" data-line-number="10">    <span class="kw">def</span> __post_init__(<span class="va">self</span>):</a>
+<a class="sourceLine" id="cb11-11" data-line-number="11">        <span class="cf">if</span> <span class="va">self</span>.qi <span class="op">&lt;</span> <span class="fl">0.0</span>:</a>
+<a class="sourceLine" id="cb11-12" data-line-number="12">            <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">&#39;Negative qi&#39;</span>)</a>
+<a class="sourceLine" id="cb11-13" data-line-number="13">        <span class="cf">if</span> <span class="va">self</span>.Di_nom <span class="op">&lt;</span> <span class="fl">0.0</span>:</a>
+<a class="sourceLine" id="cb11-14" data-line-number="14">            <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">&#39;Negative Di_nom&#39;</span>)</a>
+<a class="sourceLine" id="cb11-15" data-line-number="15">        <span class="cf">if</span> <span class="va">self</span>.b <span class="op">&lt;</span> <span class="fl">0.0</span> <span class="kw">or</span> <span class="va">self</span>.b <span class="op">&gt;</span> <span class="fl">2.0</span>:</a>
+<a class="sourceLine" id="cb11-16" data-line-number="16">            <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f&#39;Invalid b: </span><span class="sc">{</span><span class="va">self</span><span class="sc">.b}</span><span class="ss">&#39;</span>)</a>
+<a class="sourceLine" id="cb11-17" data-line-number="17"></a>
+<a class="sourceLine" id="cb11-18" data-line-number="18">    <span class="co"># time (years)</span></a>
+<a class="sourceLine" id="cb11-19" data-line-number="19">    <span class="co"># returns (daily rate)</span></a>
+<a class="sourceLine" id="cb11-20" data-line-number="20">    <span class="kw">def</span> rate(<span class="va">self</span>, time: np.ndarray) <span class="op">-&gt;</span> np.ndarray:</a>
+<a class="sourceLine" id="cb11-21" data-line-number="21">        <span class="cf">if</span> <span class="va">self</span>.b <span class="op">==</span> <span class="dv">0</span>:</a>
+<a class="sourceLine" id="cb11-22" data-line-number="22">            <span class="cf">return</span> <span class="va">self</span>.qi <span class="op">*</span> np.exp(<span class="op">-</span><span class="va">self</span>.Di_nom <span class="op">*</span> time)</a>
+<a class="sourceLine" id="cb11-23" data-line-number="23">        <span class="cf">elif</span> <span class="va">self</span>.b <span class="op">==</span> <span class="fl">1.0</span>:</a>
+<a class="sourceLine" id="cb11-24" data-line-number="24">            <span class="cf">return</span> <span class="va">self</span>.qi <span class="op">/</span> (<span class="fl">1.0</span> <span class="op">+</span> <span class="va">self</span>.Di_nom <span class="op">*</span> time)</a>
+<a class="sourceLine" id="cb11-25" data-line-number="25">        <span class="cf">else</span>:</a>
+<a class="sourceLine" id="cb11-26" data-line-number="26">            <span class="cf">return</span> (</a>
+<a class="sourceLine" id="cb11-27" data-line-number="27">              <span class="va">self</span>.qi <span class="op">/</span> (<span class="fl">1.0</span> <span class="op">+</span> <span class="va">self</span>.b <span class="op">*</span> <span class="va">self</span>.Di_nom <span class="op">*</span> time) <span class="op">**</span> (<span class="fl">1.0</span> <span class="op">/</span> <span class="va">self</span>.b)</a>
+<a class="sourceLine" id="cb11-28" data-line-number="28">            )</a></code></pre>
+<p>The math itself isn’t very interesting. It’s a direct translation of the Arps equations for the hyperbolic, harmonic, and exponential cases, dispatched on the value of <em>b</em>. We use ordinary Python arithmetic operators (<code>*</code>, <code>**</code>, etc.), but rely on the fact that <code>numpy</code> <em>overloads</em> these for arrays to provide efficient vectorized operations.</p>
+<p>I’ve chosen to store a nominal decline rather than an effective decline, because that’s what the Arps equations actually work with. For a good reference on how to convert between nominal and the various flavors of effective decline, see <a href="https://spee.org/sites/spee.org/files/wp-files/pdf/ReferencesResources/REP06-DeclineCurves.pdf">SPEE REP #6</a>. Throughout the code, we’ll use the convention that rates will be in units of barrels of oil per day, volumes will be in units of barrels of oil, declines will be nominal annual declines, and times will be in (fractional) years. I’ve found this to be a helpful set of units which, in my experience, best balances suitability for calculation with ease of data entry and human verification. (If “mismatched” units bother you, the oil and gas industry may not be the place for you.)</p>
+<p>We indicate this in the <em>type signature</em> of the <code>rate</code> function. These type annotations are not used by the Python interpreter during code execution, but are available to tools like <code>mypy</code>. For functions, we write</p>
+<pre class="sourceCode python" id="cb12"><code class="sourceCode python"><a class="sourceLine" id="cb12-1" data-line-number="1"><span class="kw">def</span> f(x: <span class="bu">int</span>, y: <span class="bu">float</span>) <span class="op">-&gt;</span> <span class="bu">str</span>:</a>
+<a class="sourceLine" id="cb12-2" data-line-number="2">   ...</a></code></pre>
+<p>to mean “<code>f</code> takes an <code>int</code> named <code>x</code> and a <code>float</code> named <code>y</code> and returns a <code>str</code>”. A function with no return type annotation returns <code>None</code> (like a <code>void</code> function in C, we use this to indicate a function called only for its side effects, usually with no explicit <code>return None</code>). The type of <code>self</code> is automatically inferred for class instance methods.</p>
+<p>We can also annotate variables with types when needed:</p>
+<pre class="sourceCode python" id="cb13"><code class="sourceCode python"><a class="sourceLine" id="cb13-1" data-line-number="1">x: <span class="bu">int</span></a></code></pre>
+<p>meaning <code>x</code> is an <code>int</code>.</p>
+<p>It’s common in Python to write code where variables are not <em>type stable</em>:</p>
+<pre class="sourceCode python" id="cb14"><code class="sourceCode python"><a class="sourceLine" id="cb14-1" data-line-number="1">x <span class="op">=</span> <span class="va">None</span>     <span class="co"># type(x) == type(None)</span></a>
+<a class="sourceLine" id="cb14-2" data-line-number="2">x <span class="op">=</span> <span class="dv">3</span>        <span class="co"># type(x) == int</span></a>
+<a class="sourceLine" id="cb14-3" data-line-number="3">x <span class="op">=</span> <span class="st">&#39;abcdef&#39;</span> <span class="co"># type(x) == str</span></a></code></pre>
+<p>While we can type code like this for <code>mypy</code>, it makes our programs harder to reason about. We’ll keep variables type stable with the exception of one special case we’ll discuss later.</p>
+<p>We use the <code>dataclasses.dataclass</code> decorator to turn our definition of <code>ArpsDecline</code> into a “data class”. The <code>frozen=True</code> argument makes objects of our class immutable—their attributes can’t be changed after they’re created. <code>dataclasses</code> writes a constructor (<code>__init__</code>) function for us, based on the declared members of the class. The <code>__post_init__</code> method is automatically called after <code>__init__</code> and we can use it to provide some validation logic—in this case, ensuring that parameters fall within the appropriate physical bounds.</p>
+<p>Let’s use <code>matplotlib</code> to draw rate vs. time curves for some example declines:</p>
+<pre class="sourceCode python" id="cb15"><code class="sourceCode python"><a class="sourceLine" id="cb15-1" data-line-number="1"><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt <span class="co"># type: ignore</span></a>
+<a class="sourceLine" id="cb15-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb15-3" data-line-number="3"><span class="kw">def</span> plot_examples():</a>
+<a class="sourceLine" id="cb15-4" data-line-number="4">    exp_decl <span class="op">=</span> ArpsDecline(<span class="fl">1000.0</span>, <span class="fl">0.9</span>, <span class="fl">0.0</span>)</a>
+<a class="sourceLine" id="cb15-5" data-line-number="5">    hyp_decl <span class="op">=</span> ArpsDecline(<span class="fl">1000.0</span>, <span class="fl">0.9</span>, <span class="fl">1.5</span>)</a>
+<a class="sourceLine" id="cb15-6" data-line-number="6">    hrm_decl <span class="op">=</span> ArpsDecline(<span class="fl">1000.0</span>, <span class="fl">0.9</span>, <span class="fl">1.0</span>)</a>
+<a class="sourceLine" id="cb15-7" data-line-number="7"></a>
+<a class="sourceLine" id="cb15-8" data-line-number="8">    time <span class="op">=</span> np.array([m <span class="op">/</span> <span class="fl">12.0</span> <span class="cf">for</span> m <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">0</span>, <span class="dv">5</span> <span class="op">*</span> <span class="dv">12</span>)])</a>
+<a class="sourceLine" id="cb15-9" data-line-number="9">    exp_rate <span class="op">=</span> exp_decl.rate(time)</a>
+<a class="sourceLine" id="cb15-10" data-line-number="10">    hyp_rate <span class="op">=</span> hyp_decl.rate(time)</a>
+<a class="sourceLine" id="cb15-11" data-line-number="11">    hrm_rate <span class="op">=</span> hrm_decl.rate(time)</a>
+<a class="sourceLine" id="cb15-12" data-line-number="12"></a>
+<a class="sourceLine" id="cb15-13" data-line-number="13">    plt.semilogy(time, exp_rate)</a>
+<a class="sourceLine" id="cb15-14" data-line-number="14">    plt.semilogy(time, hyp_rate)</a>
+<a class="sourceLine" id="cb15-15" data-line-number="15">    plt.semilogy(time, hrm_rate)</a>
+<a class="sourceLine" id="cb15-16" data-line-number="16"></a>
+<a class="sourceLine" id="cb15-17" data-line-number="17">    plt.savefig(<span class="st">&#39;examples.png&#39;</span>)</a>
+<a class="sourceLine" id="cb15-18" data-line-number="18">    plt.close()</a>
+<a class="sourceLine" id="cb15-19" data-line-number="19"></a>
+<a class="sourceLine" id="cb15-20" data-line-number="20">plot_examples()</a></code></pre>
+<p><code>matplotlib</code> doesn’t provide <code>mypy</code> type information, so we’ll tell <code>mypy</code> to skip type checking for anything coming from that module with <code>#type: ignore</code>. Assuming we’ve saved the code so far as <code>pydca.py</code>, we can typecheck it with <code>mypy pydca.py</code> and should see a message indicating success.</p>
+<p>We can run the program with <code>python pydca.py</code> to generate the example plots. If you installed Python without the Tcl/Tk libraries, you’ll want to set the environment variable <code>MPLBACKEND</code> to <code>agg</code> beforehand (on Windows, do this with <code>MPLBACKEND=agg</code>).</p>
+<p>An image should be written to <code>examples.png</code>. We can see the hyperbolic (orange), harmonic (green), and exponential (blue) cases plotted, and the behavior looks correct (note that the vertical axis is on a logarithmic scale).<br />
+<img class="centered" alt="example plots" src="/images/pydca_examples.png"></p>
+<h3 class="title">Implementation II: Fitting</h3>
+<p>Now that we can evaluate rate vs. time forecasts for given decline parameters, we need to build a way to find error-minimizing values of these parameters from observed data. This will require two things: first, a representation for the actual data to be fit; and second, a method for finding the best-fit parameters.</p>
+<p>The first piece will come from another <code>dataclass</code> we’ll write to store daily oil rate data for a given well. We’ll provide this class with methods which implement best-fitting. The fitting will be accomplished using the <code>scipy.optimize.minimize</code> function, which provides an interface to several different optimization algorithms. Since our problem has physical bounds (for example, values of <em>b</em> above 2.0 don’t make sense), we’ll use the <a href="https://en.wikipedia.org/wiki/Limited-memory_BFGS#L-BFGS-B">L-BFGS-B</a> algorithm for efficient bounded optimization by a quasi-Newton method. This is a good choice for common bounded optimization problems where the bounds are independent for each variable (“box constraints”).</p>
+<p>The specific quantity we’ll minimize is the sum of squared error (SSE) of the fit vs. the observed data. This is not necessarily the best choice of <em>cost function</em>, although it is certainly the most common. SSE will give high influence to the most extreme values in our data—for typical profiles, this means we’ll be much more strongly influenced by early production than late.</p>
+<p>Absolute error (L1) functions yield more “balanced” behavior, but have awkward problems in gradient evaluation when error is near zero. There are alternative cost functions which provide the “best of both worlds”, but that’s a deep topic of it’s own—and besides, that would dip a little too deeply into “free consulting”!</p>
+<p>During the implementation, I discovered that L-BFGS-B as implemented by <code>scipy</code> would occasionally try values just barely outside the bounds, which would in turn throw exceptions in the <code>__post_init__</code> function of <code>ArpsDecline</code>. Therefore, I added an “alternate constructor” for <code>ArpsDecline</code>s in the form of a <code>clamped</code> <em>static method</em>, which limits parameter values precisely to the valid range.</p>
+<p>The entire program so far, now including a class for per-well rate/time data with methods for fitting:</p>
+<pre class="sourceCode python" id="cb16"><code class="sourceCode python"><a class="sourceLine" id="cb16-1" data-line-number="1"><span class="im">import</span> numpy <span class="im">as</span> np</a>
+<a class="sourceLine" id="cb16-2" data-line-number="2"><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt <span class="co"># type: ignore</span></a>
+<a class="sourceLine" id="cb16-3" data-line-number="3"><span class="im">from</span> scipy.optimize <span class="im">import</span> minimize <span class="co"># type: ignore</span></a>
+<a class="sourceLine" id="cb16-4" data-line-number="4"></a>
+<a class="sourceLine" id="cb16-5" data-line-number="5"><span class="im">import</span> dataclasses <span class="im">as</span> dc</a>
+<a class="sourceLine" id="cb16-6" data-line-number="6"></a>
+<a class="sourceLine" id="cb16-7" data-line-number="7"><span class="im">from</span> typing <span class="im">import</span> List, Optional, Tuple</a>
+<a class="sourceLine" id="cb16-8" data-line-number="8"></a>
+<a class="sourceLine" id="cb16-9" data-line-number="9">YEAR_DAYS: <span class="bu">float</span> <span class="op">=</span> <span class="fl">365.25</span> <span class="co"># days</span></a>
+<a class="sourceLine" id="cb16-10" data-line-number="10"></a>
+<a class="sourceLine" id="cb16-11" data-line-number="11">_GUESS_DI_NOM: <span class="bu">float</span> <span class="op">=</span> <span class="fl">1.0</span> <span class="co"># nominal annual decline</span></a>
+<a class="sourceLine" id="cb16-12" data-line-number="12">_GUESS_B <span class="op">=</span> <span class="fl">1.5</span></a>
+<a class="sourceLine" id="cb16-13" data-line-number="13"></a>
+<a class="sourceLine" id="cb16-14" data-line-number="14">_FIT_BOUNDS: List[Tuple[Optional[<span class="bu">float</span>], Optional[<span class="bu">float</span>]]] <span class="op">=</span> [</a>
+<a class="sourceLine" id="cb16-15" data-line-number="15">    (<span class="fl">0.0</span>, <span class="va">None</span>), <span class="co"># initial rate</span></a>
+<a class="sourceLine" id="cb16-16" data-line-number="16">    (<span class="fl">0.0</span>, <span class="va">None</span>), <span class="co"># nominal annual decline</span></a>
+<a class="sourceLine" id="cb16-17" data-line-number="17">    (<span class="fl">0.0</span>, <span class="fl">2.0</span>),  <span class="co"># b</span></a>
+<a class="sourceLine" id="cb16-18" data-line-number="18">]</a>
+<a class="sourceLine" id="cb16-19" data-line-number="19"></a>
+<a class="sourceLine" id="cb16-20" data-line-number="20"><span class="at">@dc.dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</a>
+<a class="sourceLine" id="cb16-21" data-line-number="21"><span class="kw">class</span> ArpsDecline:</a>
+<a class="sourceLine" id="cb16-22" data-line-number="22">    qi: <span class="bu">float</span> <span class="co"># daily rate</span></a>
+<a class="sourceLine" id="cb16-23" data-line-number="23">    Di_nom: <span class="bu">float</span> <span class="co"># nominal annual decline</span></a>
+<a class="sourceLine" id="cb16-24" data-line-number="24">    b: <span class="bu">float</span> <span class="co"># unitless exponent</span></a>
+<a class="sourceLine" id="cb16-25" data-line-number="25"></a>
+<a class="sourceLine" id="cb16-26" data-line-number="26">    <span class="kw">def</span> __post_init__(<span class="va">self</span>):</a>
+<a class="sourceLine" id="cb16-27" data-line-number="27">        <span class="cf">if</span> <span class="va">self</span>.qi <span class="op">&lt;</span> <span class="fl">0.0</span>:</a>
+<a class="sourceLine" id="cb16-28" data-line-number="28">            <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">&#39;Negative qi&#39;</span>)</a>
+<a class="sourceLine" id="cb16-29" data-line-number="29">        <span class="cf">if</span> <span class="va">self</span>.Di_nom <span class="op">&lt;</span> <span class="fl">0.0</span>:</a>
+<a class="sourceLine" id="cb16-30" data-line-number="30">            <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">&#39;Negative Di_nom&#39;</span>)</a>
+<a class="sourceLine" id="cb16-31" data-line-number="31">        <span class="cf">if</span> <span class="va">self</span>.b <span class="op">&lt;</span> <span class="fl">0.0</span> <span class="kw">or</span> <span class="va">self</span>.b <span class="op">&gt;</span> <span class="fl">2.0</span>:</a>
+<a class="sourceLine" id="cb16-32" data-line-number="32">            <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f&#39;Invalid b: </span><span class="sc">{</span><span class="va">self</span><span class="sc">.b}</span><span class="ss">&#39;</span>)</a>
+<a class="sourceLine" id="cb16-33" data-line-number="33"></a>
+<a class="sourceLine" id="cb16-34" data-line-number="34">    <span class="co"># time (years)</span></a>
+<a class="sourceLine" id="cb16-35" data-line-number="35">    <span class="co"># returns (daily rate)</span></a>
+<a class="sourceLine" id="cb16-36" data-line-number="36">    <span class="kw">def</span> rate(<span class="va">self</span>, time: np.ndarray) <span class="op">-&gt;</span> np.ndarray:</a>
+<a class="sourceLine" id="cb16-37" data-line-number="37">        <span class="cf">if</span> <span class="va">self</span>.b <span class="op">==</span> <span class="dv">0</span>:</a>
+<a class="sourceLine" id="cb16-38" data-line-number="38">            <span class="cf">return</span> <span class="va">self</span>.qi <span class="op">*</span> np.exp(<span class="op">-</span><span class="va">self</span>.Di_nom <span class="op">*</span> time)</a>
+<a class="sourceLine" id="cb16-39" data-line-number="39">        <span class="cf">elif</span> <span class="va">self</span>.b <span class="op">==</span> <span class="fl">1.0</span>:</a>
+<a class="sourceLine" id="cb16-40" data-line-number="40">            <span class="cf">return</span> <span class="va">self</span>.qi <span class="op">/</span> (<span class="fl">1.0</span> <span class="op">+</span> <span class="va">self</span>.Di_nom <span class="op">*</span> time)</a>
+<a class="sourceLine" id="cb16-41" data-line-number="41">        <span class="cf">else</span>:</a>
+<a class="sourceLine" id="cb16-42" data-line-number="42">            <span class="cf">return</span> (</a>
+<a class="sourceLine" id="cb16-43" data-line-number="43">              <span class="va">self</span>.qi <span class="op">/</span> (<span class="fl">1.0</span> <span class="op">+</span> <span class="va">self</span>.b <span class="op">*</span> <span class="va">self</span>.Di_nom <span class="op">*</span> time) <span class="op">**</span> (<span class="fl">1.0</span> <span class="op">/</span> <span class="va">self</span>.b)</a>
+<a class="sourceLine" id="cb16-44" data-line-number="44">            )</a>
+<a class="sourceLine" id="cb16-45" data-line-number="45"></a>
+<a class="sourceLine" id="cb16-46" data-line-number="46">    <span class="at">@staticmethod</span></a>
+<a class="sourceLine" id="cb16-47" data-line-number="47">    <span class="kw">def</span> clamped(qi: <span class="bu">float</span>, Di_nom: <span class="bu">float</span>, b: <span class="bu">float</span>) <span class="op">-&gt;</span> <span class="st">&#39;ArpsDecline&#39;</span>:</a>
+<a class="sourceLine" id="cb16-48" data-line-number="48">        <span class="cf">return</span> ArpsDecline(</a>
+<a class="sourceLine" id="cb16-49" data-line-number="49">            <span class="bu">max</span>(qi, <span class="fl">0.0</span>),</a>
+<a class="sourceLine" id="cb16-50" data-line-number="50">            <span class="bu">max</span>(Di_nom, <span class="fl">0.0</span>),</a>
+<a class="sourceLine" id="cb16-51" data-line-number="51">            <span class="bu">max</span>(<span class="bu">min</span>(b, <span class="fl">2.0</span>), <span class="fl">0.0</span>),</a>
+<a class="sourceLine" id="cb16-52" data-line-number="52">        )</a>
+<a class="sourceLine" id="cb16-53" data-line-number="53"></a>
+<a class="sourceLine" id="cb16-54" data-line-number="54"><span class="at">@dc.dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</a>
+<a class="sourceLine" id="cb16-55" data-line-number="55"><span class="kw">class</span> DailyOil:</a>
+<a class="sourceLine" id="cb16-56" data-line-number="56">    api: <span class="bu">str</span></a>
+<a class="sourceLine" id="cb16-57" data-line-number="57">    days_on: np.ndarray <span class="co"># time (days)</span></a>
+<a class="sourceLine" id="cb16-58" data-line-number="58">    oil: np.ndarray <span class="co"># daily rate</span></a>
+<a class="sourceLine" id="cb16-59" data-line-number="59"></a>
+<a class="sourceLine" id="cb16-60" data-line-number="60">    <span class="kw">def</span> __post_init__(<span class="va">self</span>):</a>
+<a class="sourceLine" id="cb16-61" data-line-number="61">        <span class="cf">if</span> <span class="bu">len</span>(<span class="va">self</span>.days_on) <span class="op">!=</span> <span class="bu">len</span>(<span class="va">self</span>.oil):</a>
+<a class="sourceLine" id="cb16-62" data-line-number="62">            <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">&#39;Different lengths for days on and oil rate&#39;</span>)</a>
+<a class="sourceLine" id="cb16-63" data-line-number="63"></a>
+<a class="sourceLine" id="cb16-64" data-line-number="64">    <span class="kw">def</span> best_fit(<span class="va">self</span>) <span class="op">-&gt;</span> ArpsDecline:</a>
+<a class="sourceLine" id="cb16-65" data-line-number="65">        initial_guess <span class="op">=</span> np.array([</a>
+<a class="sourceLine" id="cb16-66" data-line-number="66">            np.<span class="bu">max</span>(<span class="va">self</span>.oil), <span class="co"># guess qi = peak rate</span></a>
+<a class="sourceLine" id="cb16-67" data-line-number="67">            _GUESS_DI_NOM,</a>
+<a class="sourceLine" id="cb16-68" data-line-number="68">            _GUESS_B,</a>
+<a class="sourceLine" id="cb16-69" data-line-number="69">        ])</a>
+<a class="sourceLine" id="cb16-70" data-line-number="70"></a>
+<a class="sourceLine" id="cb16-71" data-line-number="71">        fit <span class="op">=</span> minimize(</a>
+<a class="sourceLine" id="cb16-72" data-line-number="72">                <span class="kw">lambda</span> params: <span class="va">self</span>._sse(ArpsDecline.clamped(<span class="op">*</span>params)),</a>
+<a class="sourceLine" id="cb16-73" data-line-number="73">                initial_guess, method<span class="op">=</span><span class="st">&#39;L-BFGS-B&#39;</span>, bounds<span class="op">=</span>_FIT_BOUNDS)</a>
+<a class="sourceLine" id="cb16-74" data-line-number="74">        <span class="cf">return</span> ArpsDecline.clamped(<span class="op">*</span>fit.x)</a>
+<a class="sourceLine" id="cb16-75" data-line-number="75"></a>
+<a class="sourceLine" id="cb16-76" data-line-number="76">    <span class="co"># sum of squared error for a given fit to this data</span></a>
+<a class="sourceLine" id="cb16-77" data-line-number="77">    <span class="kw">def</span> _sse(<span class="va">self</span>, fit: ArpsDecline) <span class="op">-&gt;</span> <span class="bu">float</span>:</a>
+<a class="sourceLine" id="cb16-78" data-line-number="78">        time_years <span class="op">=</span> <span class="va">self</span>.days_on <span class="op">/</span> YEAR_DAYS</a>
+<a class="sourceLine" id="cb16-79" data-line-number="79">        forecast <span class="op">=</span> fit.rate(time_years)</a>
+<a class="sourceLine" id="cb16-80" data-line-number="80">        <span class="cf">return</span> np.<span class="bu">sum</span>((forecast <span class="op">-</span> <span class="va">self</span>.oil) <span class="op">**</span> <span class="dv">2</span>)</a></code></pre>
+<p>L-BFGS-B requires an initial guess for the value of each parameter; they don’t have to be very good guesses. We hard-code guesses for initial decline and hyperbolic exponent, and guess initial rate from the highest observed rate.</p>
+<p><code>mypy</code> doesn’t know enough about <code>ndarray</code>s to actually know that <code>initial_guess</code> and subsequent parameter arrays will unpack into exactly three <code>float</code>s in <code>ArpsDecline.clamped(*params)</code>, but it’s “conservative” in the sense that if something could work, it often assumes it will, so we don’t get any warnings here.</p>
+<p>The <code>Optional</code> type will come up again—it’s the exception I mentioned earlier. In <code>mypy</code> terms, <code>Optional[int]</code> is equivalent to <code>Union[int, None]</code>; it represents either a value of the given type or <code>None</code>. For example, we can write (with <code>mypy</code>’s blessing):</p>
+<pre class="sourceCode python" id="cb17"><code class="sourceCode python"><a class="sourceLine" id="cb17-1" data-line-number="1">x: Optional[<span class="bu">int</span>]</a>
+<a class="sourceLine" id="cb17-2" data-line-number="2">x <span class="op">=</span> <span class="dv">3</span></a>
+<a class="sourceLine" id="cb17-3" data-line-number="3">x <span class="op">=</span> <span class="va">None</span></a>
+<a class="sourceLine" id="cb17-4" data-line-number="4">x <span class="op">=</span> <span class="dv">5</span></a></code></pre>
+<p>We’re just about ready for our code to encounter real-world data.</p>
+<h3 class="title">Implementation III: Parsing and Converting Monthly Data</h3>
+<p><a href="/posts/14-xmhell.html">Last week</a> we retrieved monthly volume data for Eddy County, New Mexico. I’ve extracted a subset of this data for example use, which can be found in <code>data/eddy.zip</code> in the project <a href="https://github.com/derrickturk/pydca">GitHub repository</a>.</p>
+<p>Inside the ZIP archive is a tab-separated value (TSV) file, which can be extracted to <code>data/eddy.tsv</code>. Each row follows the same format:</p>
+<table>
+<thead>
+<tr class="header">
+<th>api</th>
+<th>year</th>
+<th>month</th>
+<th style="text-align: left;">oil</th>
+<th style="text-align: left;">gas</th>
+<th>water</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>3001529417</td>
+<td>1997</td>
+<td>2</td>
+<td style="text-align: left;">2790</td>
+<td style="text-align: left;">10156</td>
+<td>2353</td>
+</tr>
+<tr class="even">
+<td>3001529417</td>
+<td>1997</td>
+<td>5</td>
+<td style="text-align: left;">1457</td>
+<td style="text-align: left;">10155</td>
+<td>2353</td>
+</tr>
+<tr class="odd">
+<td>3001529417</td>
+<td>1997</td>
+<td>6</td>
+<td style="text-align: left;">103</td>
+<td style="text-align: left;">2449</td>
+<td>322</td>
+</tr>
+<tr class="even">
+<td>…</td>
+<td></td>
+<td></td>
+<td style="text-align: left;"></td>
+<td style="text-align: left;"></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>The oil, gas, and water entries may each be present or absent (blank). We will only work with the oil data for our example. This file is generated by a process which sorts the data before output (in order of API, then year, then month), so we can safely assume that we are reading production well-by-well in calendar sequence.</p>
+<p>Notice that these are monthly volumes, not daily production rates. While it’s possible to directly fit a volume vs. time (or rather, cumulative production vs. time) relation, it’s more computationally intensive. From experience, we can achieve very similar fits (within a percent or two relative error) by fitting a rate vs. time relation to monthly data, treating each monthly volume as the equivalent average daily rate, and placing its occurrence exactly half-way through the month. In addition to parsing the tab-separated file, we’ll also need to write code to handle this translation.</p>
+<p>Real data also exposes the sorts of “anomalies” which can throw a kink in our fitting approach. Wells in real life don’t start production at a peak rate and then smoothly decline. Instead, there is generally a build-up period of increasing rate, followed by the onset of decline. The Arps equations don’t account for the “non-ideal” circumstances which cause this build-up, so we’ll need to fit only to peak-forward data. Additionally, we may choose to ignore months with production lower than a certain cutoff: these might represent operational issues which don’t reflect true reservoir performance—or, they might represent inadequate flowing pressure or other conditions which should materially affect our forecast!. This is one of many judgment calls reservoir engineers have to make when forecasting well production. For our example, we’ll implement a peak-forward data filter and a simple cutoff-based “downtime” filter.</p>
+<p>We’ll also have to watch out for wells with too little data (after filtering) to produce a reliable fit—we’ll make this threshold configurable, but three months should be considered an absolute minimum. There’s one oddity in the OCD data which I only encountered after finishing the first draft of the program: wells with production prior to 1993 get their <em>total</em> volume prior to 1993 reported as a single month’s production in December 1992. This totally blows away the fitting algorithm, and in any case we don’t have a good way to recover month-by-month volumes from this lump sum, so we’ll record this value as the <em>prior cumulative</em> for each well (if present) and skip wells where it is present. We will also encounter some wells which, for one reason or another (recompletions, etc.) experience peak production very late in their producing histories. This will also severely violate the assumptions we make in fitting these kinds of declines, so we will detect (with a configurable cutoff) and skip these wells too.</p>
+<p>The implementation strategy we’ll take is to create yet another <code>dataclass</code> for representing monthly volume records from our TSV data. This class will be the simplest yet: it’s just a “bag of data” shaped like each row of our file.</p>
+<p>We’ll then write functions for streaming these records from a TSV file (we can use the built-in <code>csv</code> library to do this—please don’t reach for <code>pandas</code> for these kinds of simple problems!), and translating the stream of monthly records into well-by-well <code>DailyOil</code> objects using the averaging approach discussed previously.</p>
+<p>The existing code for <code>DailyOil</code> and fitting should work fine with one or two small modifications (e.g. tracking the prior cumulative). We’ll finally write a proper <code>main</code> function which takes the path of a TSV file as a command-line argument, streams the data in row-by-row, fits each well if conditions are met, and plots the result to a PNG image.</p>
+<p>The final program looks like this:</p>
+<pre class="sourceCode python" id="cb18"><code class="sourceCode python"><a class="sourceLine" id="cb18-1" data-line-number="1"><span class="im">import</span> sys</a>
+<a class="sourceLine" id="cb18-2" data-line-number="2"><span class="im">import</span> csv</a>
+<a class="sourceLine" id="cb18-3" data-line-number="3"><span class="im">import</span> calendar</a>
+<a class="sourceLine" id="cb18-4" data-line-number="4"><span class="im">from</span> datetime <span class="im">import</span> date, timedelta</a>
+<a class="sourceLine" id="cb18-5" data-line-number="5"></a>
+<a class="sourceLine" id="cb18-6" data-line-number="6"><span class="im">import</span> numpy <span class="im">as</span> np</a>
+<a class="sourceLine" id="cb18-7" data-line-number="7"><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt <span class="co"># type: ignore</span></a>
+<a class="sourceLine" id="cb18-8" data-line-number="8"><span class="im">from</span> scipy.optimize <span class="im">import</span> minimize <span class="co"># type: ignore</span></a>
+<a class="sourceLine" id="cb18-9" data-line-number="9"></a>
+<a class="sourceLine" id="cb18-10" data-line-number="10"><span class="im">import</span> dataclasses <span class="im">as</span> dc</a>
+<a class="sourceLine" id="cb18-11" data-line-number="11"></a>
+<a class="sourceLine" id="cb18-12" data-line-number="12"><span class="im">from</span> typing <span class="im">import</span> Iterable, Iterator, List, Optional, TextIO, Tuple</a>
+<a class="sourceLine" id="cb18-13" data-line-number="13"></a>
+<a class="sourceLine" id="cb18-14" data-line-number="14">YEAR_DAYS: <span class="bu">float</span> <span class="op">=</span> <span class="fl">365.25</span> <span class="co"># days</span></a>
+<a class="sourceLine" id="cb18-15" data-line-number="15">DOWNTIME_CUTOFF <span class="op">=</span> <span class="fl">1.0</span> <span class="co"># daily rate</span></a>
+<a class="sourceLine" id="cb18-16" data-line-number="16"></a>
+<a class="sourceLine" id="cb18-17" data-line-number="17">MIN_PTS_FIT: <span class="bu">int</span> <span class="op">=</span> <span class="dv">3</span> <span class="co"># minimum # of points for fitting</span></a>
+<a class="sourceLine" id="cb18-18" data-line-number="18">PEAK_SHIFT_MAX: <span class="bu">int</span> <span class="op">=</span> <span class="dv">6</span> <span class="co"># maximum # of months to peak for fitting</span></a>
+<a class="sourceLine" id="cb18-19" data-line-number="19"></a>
+<a class="sourceLine" id="cb18-20" data-line-number="20">_GUESS_DI_NOM: <span class="bu">float</span> <span class="op">=</span> <span class="fl">1.0</span> <span class="co"># nominal annual decline</span></a>
+<a class="sourceLine" id="cb18-21" data-line-number="21">_GUESS_B <span class="op">=</span> <span class="fl">1.5</span></a>
+<a class="sourceLine" id="cb18-22" data-line-number="22"></a>
+<a class="sourceLine" id="cb18-23" data-line-number="23">_FIT_BOUNDS: List[Tuple[Optional[<span class="bu">float</span>], Optional[<span class="bu">float</span>]]] <span class="op">=</span> [</a>
+<a class="sourceLine" id="cb18-24" data-line-number="24">    (<span class="fl">0.0</span>, <span class="va">None</span>), <span class="co"># initial rate</span></a>
+<a class="sourceLine" id="cb18-25" data-line-number="25">    (<span class="fl">0.0</span>, <span class="va">None</span>), <span class="co"># nominal annual decline</span></a>
+<a class="sourceLine" id="cb18-26" data-line-number="26">    (<span class="fl">0.0</span>, <span class="fl">2.0</span>),  <span class="co"># b</span></a>
+<a class="sourceLine" id="cb18-27" data-line-number="27">]</a>
+<a class="sourceLine" id="cb18-28" data-line-number="28"></a>
+<a class="sourceLine" id="cb18-29" data-line-number="29"><span class="at">@dc.dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</a>
+<a class="sourceLine" id="cb18-30" data-line-number="30"><span class="kw">class</span> ArpsDecline:</a>
+<a class="sourceLine" id="cb18-31" data-line-number="31">    qi: <span class="bu">float</span> <span class="co"># daily rate</span></a>
+<a class="sourceLine" id="cb18-32" data-line-number="32">    Di_nom: <span class="bu">float</span> <span class="co"># nominal annual decline</span></a>
+<a class="sourceLine" id="cb18-33" data-line-number="33">    b: <span class="bu">float</span> <span class="co"># unitless exponent</span></a>
+<a class="sourceLine" id="cb18-34" data-line-number="34"></a>
+<a class="sourceLine" id="cb18-35" data-line-number="35">    <span class="kw">def</span> __post_init__(<span class="va">self</span>):</a>
+<a class="sourceLine" id="cb18-36" data-line-number="36">        <span class="cf">if</span> <span class="va">self</span>.qi <span class="op">&lt;</span> <span class="fl">0.0</span>:</a>
+<a class="sourceLine" id="cb18-37" data-line-number="37">            <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">&#39;Negative qi&#39;</span>)</a>
+<a class="sourceLine" id="cb18-38" data-line-number="38">        <span class="cf">if</span> <span class="va">self</span>.Di_nom <span class="op">&lt;</span> <span class="fl">0.0</span>:</a>
+<a class="sourceLine" id="cb18-39" data-line-number="39">            <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">&#39;Negative Di_nom&#39;</span>)</a>
+<a class="sourceLine" id="cb18-40" data-line-number="40">        <span class="cf">if</span> <span class="va">self</span>.b <span class="op">&lt;</span> <span class="fl">0.0</span> <span class="kw">or</span> <span class="va">self</span>.b <span class="op">&gt;</span> <span class="fl">2.0</span>:</a>
+<a class="sourceLine" id="cb18-41" data-line-number="41">            <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f&#39;Invalid b: </span><span class="sc">{</span><span class="va">self</span><span class="sc">.b}</span><span class="ss">&#39;</span>)</a>
+<a class="sourceLine" id="cb18-42" data-line-number="42"></a>
+<a class="sourceLine" id="cb18-43" data-line-number="43">    <span class="co"># time (years)</span></a>
+<a class="sourceLine" id="cb18-44" data-line-number="44">    <span class="co"># returns (daily rate)</span></a>
+<a class="sourceLine" id="cb18-45" data-line-number="45">    <span class="kw">def</span> rate(<span class="va">self</span>, time: np.ndarray) <span class="op">-&gt;</span> np.ndarray:</a>
+<a class="sourceLine" id="cb18-46" data-line-number="46">        <span class="cf">if</span> <span class="va">self</span>.b <span class="op">==</span> <span class="dv">0</span>:</a>
+<a class="sourceLine" id="cb18-47" data-line-number="47">            <span class="cf">return</span> <span class="va">self</span>.qi <span class="op">*</span> np.exp(<span class="op">-</span><span class="va">self</span>.Di_nom <span class="op">*</span> time)</a>
+<a class="sourceLine" id="cb18-48" data-line-number="48">        <span class="cf">elif</span> <span class="va">self</span>.b <span class="op">==</span> <span class="fl">1.0</span>:</a>
+<a class="sourceLine" id="cb18-49" data-line-number="49">            <span class="cf">return</span> <span class="va">self</span>.qi <span class="op">/</span> (<span class="fl">1.0</span> <span class="op">+</span> <span class="va">self</span>.Di_nom <span class="op">*</span> time)</a>
+<a class="sourceLine" id="cb18-50" data-line-number="50">        <span class="cf">else</span>:</a>
+<a class="sourceLine" id="cb18-51" data-line-number="51">            <span class="cf">return</span> (</a>
+<a class="sourceLine" id="cb18-52" data-line-number="52">              <span class="va">self</span>.qi <span class="op">/</span> (<span class="fl">1.0</span> <span class="op">+</span> <span class="va">self</span>.b <span class="op">*</span> <span class="va">self</span>.Di_nom <span class="op">*</span> time) <span class="op">**</span> (<span class="fl">1.0</span> <span class="op">/</span> <span class="va">self</span>.b)</a>
+<a class="sourceLine" id="cb18-53" data-line-number="53">            )</a>
+<a class="sourceLine" id="cb18-54" data-line-number="54"></a>
+<a class="sourceLine" id="cb18-55" data-line-number="55">    <span class="at">@staticmethod</span></a>
+<a class="sourceLine" id="cb18-56" data-line-number="56">    <span class="kw">def</span> clamped(qi: <span class="bu">float</span>, Di_nom: <span class="bu">float</span>, b: <span class="bu">float</span>) <span class="op">-&gt;</span> <span class="st">&#39;ArpsDecline&#39;</span>:</a>
+<a class="sourceLine" id="cb18-57" data-line-number="57">        <span class="cf">return</span> ArpsDecline(</a>
+<a class="sourceLine" id="cb18-58" data-line-number="58">            <span class="bu">max</span>(qi, <span class="fl">0.0</span>),</a>
+<a class="sourceLine" id="cb18-59" data-line-number="59">            <span class="bu">max</span>(Di_nom, <span class="fl">0.0</span>),</a>
+<a class="sourceLine" id="cb18-60" data-line-number="60">            <span class="bu">max</span>(<span class="bu">min</span>(b, <span class="fl">2.0</span>), <span class="fl">0.0</span>),</a>
+<a class="sourceLine" id="cb18-61" data-line-number="61">        )</a>
+<a class="sourceLine" id="cb18-62" data-line-number="62"></a>
+<a class="sourceLine" id="cb18-63" data-line-number="63"><span class="at">@dc.dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</a>
+<a class="sourceLine" id="cb18-64" data-line-number="64"><span class="kw">class</span> DailyOil:</a>
+<a class="sourceLine" id="cb18-65" data-line-number="65">    api: <span class="bu">str</span></a>
+<a class="sourceLine" id="cb18-66" data-line-number="66">    days_on: np.ndarray <span class="co"># time (days)</span></a>
+<a class="sourceLine" id="cb18-67" data-line-number="67">    oil: np.ndarray <span class="co"># daily rate</span></a>
+<a class="sourceLine" id="cb18-68" data-line-number="68">    prior_cum: Optional[<span class="bu">float</span>] <span class="co"># prior cumulative as of 1993/01 if available</span></a>
+<a class="sourceLine" id="cb18-69" data-line-number="69"></a>
+<a class="sourceLine" id="cb18-70" data-line-number="70">    <span class="kw">def</span> __post_init__(<span class="va">self</span>):</a>
+<a class="sourceLine" id="cb18-71" data-line-number="71">        <span class="cf">if</span> <span class="bu">len</span>(<span class="va">self</span>.days_on) <span class="op">!=</span> <span class="bu">len</span>(<span class="va">self</span>.oil):</a>
+<a class="sourceLine" id="cb18-72" data-line-number="72">            <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">&#39;Different lengths for days on and oil rate&#39;</span>)</a>
+<a class="sourceLine" id="cb18-73" data-line-number="73"></a>
+<a class="sourceLine" id="cb18-74" data-line-number="74">    <span class="kw">def</span> best_fit(<span class="va">self</span>) <span class="op">-&gt;</span> ArpsDecline:</a>
+<a class="sourceLine" id="cb18-75" data-line-number="75">        initial_guess <span class="op">=</span> np.array([</a>
+<a class="sourceLine" id="cb18-76" data-line-number="76">            np.<span class="bu">max</span>(<span class="va">self</span>.oil), <span class="co"># guess qi = peak rate</span></a>
+<a class="sourceLine" id="cb18-77" data-line-number="77">            _GUESS_DI_NOM,</a>
+<a class="sourceLine" id="cb18-78" data-line-number="78">            _GUESS_B,</a>
+<a class="sourceLine" id="cb18-79" data-line-number="79">        ])</a>
+<a class="sourceLine" id="cb18-80" data-line-number="80"></a>
+<a class="sourceLine" id="cb18-81" data-line-number="81">        fit <span class="op">=</span> minimize(</a>
+<a class="sourceLine" id="cb18-82" data-line-number="82">                <span class="kw">lambda</span> params: <span class="va">self</span>._sse(ArpsDecline.clamped(<span class="op">*</span>params)),</a>
+<a class="sourceLine" id="cb18-83" data-line-number="83">                initial_guess, method<span class="op">=</span><span class="st">&#39;L-BFGS-B&#39;</span>, bounds<span class="op">=</span>_FIT_BOUNDS)</a>
+<a class="sourceLine" id="cb18-84" data-line-number="84">        <span class="cf">return</span> ArpsDecline.clamped(<span class="op">*</span>fit.x)</a>
+<a class="sourceLine" id="cb18-85" data-line-number="85"></a>
+<a class="sourceLine" id="cb18-86" data-line-number="86">    <span class="co"># filter this data set to only peak-forward production</span></a>
+<a class="sourceLine" id="cb18-87" data-line-number="87">    <span class="kw">def</span> peak_forward(<span class="va">self</span>) <span class="op">-&gt;</span> Tuple[<span class="bu">int</span>, <span class="st">&#39;DailyOil&#39;</span>]:</a>
+<a class="sourceLine" id="cb18-88" data-line-number="88">        <span class="cf">if</span> <span class="bu">len</span>(<span class="va">self</span>.oil) <span class="op">==</span> <span class="dv">0</span>:</a>
+<a class="sourceLine" id="cb18-89" data-line-number="89">            <span class="cf">return</span> <span class="dv">0</span>, <span class="va">self</span></a>
+<a class="sourceLine" id="cb18-90" data-line-number="90">        peak_idx <span class="op">=</span> np.argmax(<span class="va">self</span>.oil)</a>
+<a class="sourceLine" id="cb18-91" data-line-number="91">        <span class="cf">return</span> peak_idx, DailyOil(<span class="va">self</span>.api,</a>
+<a class="sourceLine" id="cb18-92" data-line-number="92">                <span class="va">self</span>.days_on[peak_idx:], <span class="va">self</span>.oil[peak_idx:], <span class="va">self</span>.prior_cum)</a>
+<a class="sourceLine" id="cb18-93" data-line-number="93"></a>
+<a class="sourceLine" id="cb18-94" data-line-number="94">    <span class="co"># filter this data set to drop &quot;downtime&quot; (zero-production days)</span></a>
+<a class="sourceLine" id="cb18-95" data-line-number="95">    <span class="kw">def</span> no_downtime(<span class="va">self</span>, cutoff: <span class="bu">float</span> <span class="op">=</span> DOWNTIME_CUTOFF) <span class="op">-&gt;</span> <span class="st">&#39;DailyOil&#39;</span>:</a>
+<a class="sourceLine" id="cb18-96" data-line-number="96">        keep_idx <span class="op">=</span> <span class="va">self</span>.oil <span class="op">&gt;</span> cutoff</a>
+<a class="sourceLine" id="cb18-97" data-line-number="97">        <span class="cf">return</span> DailyOil(<span class="va">self</span>.api, <span class="va">self</span>.days_on[keep_idx], <span class="va">self</span>.oil[keep_idx],</a>
+<a class="sourceLine" id="cb18-98" data-line-number="98">                <span class="va">self</span>.prior_cum)</a>
+<a class="sourceLine" id="cb18-99" data-line-number="99"></a>
+<a class="sourceLine" id="cb18-100" data-line-number="100">    <span class="co"># sum of squared error for a given fit to this data</span></a>
+<a class="sourceLine" id="cb18-101" data-line-number="101">    <span class="kw">def</span> _sse(<span class="va">self</span>, fit: ArpsDecline) <span class="op">-&gt;</span> <span class="bu">float</span>:</a>
+<a class="sourceLine" id="cb18-102" data-line-number="102">        time_years <span class="op">=</span> <span class="va">self</span>.days_on <span class="op">/</span> YEAR_DAYS</a>
+<a class="sourceLine" id="cb18-103" data-line-number="103">        forecast <span class="op">=</span> fit.rate(time_years)</a>
+<a class="sourceLine" id="cb18-104" data-line-number="104">        <span class="cf">return</span> np.<span class="bu">sum</span>((forecast <span class="op">-</span> <span class="va">self</span>.oil) <span class="op">**</span> <span class="dv">2</span>)</a>
+<a class="sourceLine" id="cb18-105" data-line-number="105"></a>
+<a class="sourceLine" id="cb18-106" data-line-number="106"><span class="at">@dc.dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</a>
+<a class="sourceLine" id="cb18-107" data-line-number="107"><span class="kw">class</span> MonthlyRecord:</a>
+<a class="sourceLine" id="cb18-108" data-line-number="108">    api: <span class="bu">str</span></a>
+<a class="sourceLine" id="cb18-109" data-line-number="109">    year: <span class="bu">int</span></a>
+<a class="sourceLine" id="cb18-110" data-line-number="110">    month: <span class="bu">int</span></a>
+<a class="sourceLine" id="cb18-111" data-line-number="111">    oil: Optional[<span class="bu">float</span>]</a>
+<a class="sourceLine" id="cb18-112" data-line-number="112">    gas: Optional[<span class="bu">float</span>]</a>
+<a class="sourceLine" id="cb18-113" data-line-number="113">    water: Optional[<span class="bu">float</span>]</a>
+<a class="sourceLine" id="cb18-114" data-line-number="114"></a>
+<a class="sourceLine" id="cb18-115" data-line-number="115"><span class="kw">def</span> month_days(year: <span class="bu">int</span>, month: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</a>
+<a class="sourceLine" id="cb18-116" data-line-number="116">    <span class="cf">return</span> calendar.monthrange(year, month)[<span class="dv">1</span>]</a>
+<a class="sourceLine" id="cb18-117" data-line-number="117"></a>
+<a class="sourceLine" id="cb18-118" data-line-number="118"><span class="kw">def</span> mid_month(year: <span class="bu">int</span>, month: <span class="bu">int</span>) <span class="op">-&gt;</span> date:</a>
+<a class="sourceLine" id="cb18-119" data-line-number="119">    <span class="cf">return</span> date(year, month, <span class="dv">1</span>) <span class="op">+</span> timedelta(days<span class="op">=</span>month_days(year, month) <span class="op">/</span> <span class="dv">2</span>)</a>
+<a class="sourceLine" id="cb18-120" data-line-number="120"></a>
+<a class="sourceLine" id="cb18-121" data-line-number="121"><span class="co"># precondition: monthly is sorted by API then date</span></a>
+<a class="sourceLine" id="cb18-122" data-line-number="122"><span class="kw">def</span> from_monthly(monthly: Iterable[MonthlyRecord]) <span class="op">-&gt;</span> Iterator[DailyOil]:</a>
+<a class="sourceLine" id="cb18-123" data-line-number="123">    last_api: Optional[<span class="bu">str</span>] <span class="op">=</span> <span class="va">None</span></a>
+<a class="sourceLine" id="cb18-124" data-line-number="124">    first_prod: Optional[date] <span class="op">=</span> <span class="va">None</span></a>
+<a class="sourceLine" id="cb18-125" data-line-number="125">    prior_cum: Optional[<span class="bu">float</span>] <span class="op">=</span> <span class="va">None</span></a>
+<a class="sourceLine" id="cb18-126" data-line-number="126">    days_on: List[<span class="bu">float</span>] <span class="op">=</span> <span class="bu">list</span>()</a>
+<a class="sourceLine" id="cb18-127" data-line-number="127">    oil: List[<span class="bu">float</span>] <span class="op">=</span> <span class="bu">list</span>()</a>
+<a class="sourceLine" id="cb18-128" data-line-number="128"></a>
+<a class="sourceLine" id="cb18-129" data-line-number="129">    <span class="cf">for</span> m <span class="kw">in</span> monthly:</a>
+<a class="sourceLine" id="cb18-130" data-line-number="130">        <span class="cf">if</span> m.api <span class="op">!=</span> last_api:</a>
+<a class="sourceLine" id="cb18-131" data-line-number="131">            <span class="cf">if</span> last_api <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</a>
+<a class="sourceLine" id="cb18-132" data-line-number="132">                <span class="cf">yield</span> DailyOil(last_api, np.array(days_on), np.array(oil),</a>
+<a class="sourceLine" id="cb18-133" data-line-number="133">                        prior_cum)</a>
+<a class="sourceLine" id="cb18-134" data-line-number="134">                days_on <span class="op">=</span> <span class="bu">list</span>()</a>
+<a class="sourceLine" id="cb18-135" data-line-number="135">                oil <span class="op">=</span> <span class="bu">list</span>()</a>
+<a class="sourceLine" id="cb18-136" data-line-number="136">            last_api <span class="op">=</span> m.api</a>
+<a class="sourceLine" id="cb18-137" data-line-number="137">            first_prod <span class="op">=</span> <span class="va">None</span></a>
+<a class="sourceLine" id="cb18-138" data-line-number="138"></a>
+<a class="sourceLine" id="cb18-139" data-line-number="139">        <span class="co"># NM OCD reports cumulative prior to 1993-01-01 as 1992/12 monthly</span></a>
+<a class="sourceLine" id="cb18-140" data-line-number="140">        <span class="cf">if</span> m.year <span class="op">==</span> <span class="dv">1992</span> <span class="kw">and</span> m.month <span class="op">==</span> <span class="dv">12</span>:</a>
+<a class="sourceLine" id="cb18-141" data-line-number="141">            prior_cum <span class="op">=</span> m.oil</a>
+<a class="sourceLine" id="cb18-142" data-line-number="142">            <span class="cf">continue</span></a>
+<a class="sourceLine" id="cb18-143" data-line-number="143"></a>
+<a class="sourceLine" id="cb18-144" data-line-number="144">        <span class="cf">if</span> first_prod <span class="kw">is</span> <span class="va">None</span>:</a>
+<a class="sourceLine" id="cb18-145" data-line-number="145">            first_prod <span class="op">=</span> date(m.year, m.month, <span class="dv">1</span>)</a>
+<a class="sourceLine" id="cb18-146" data-line-number="146"></a>
+<a class="sourceLine" id="cb18-147" data-line-number="147">        <span class="cf">if</span> m.oil <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>: <span class="co"># skip months with missing oil data</span></a>
+<a class="sourceLine" id="cb18-148" data-line-number="148">            days_on.append((mid_month(m.year, m.month) <span class="op">-</span> first_prod).days)</a>
+<a class="sourceLine" id="cb18-149" data-line-number="149">            oil.append(m.oil <span class="op">/</span> month_days(m.year, m.month))</a>
+<a class="sourceLine" id="cb18-150" data-line-number="150"></a>
+<a class="sourceLine" id="cb18-151" data-line-number="151">    <span class="cf">if</span> last_api <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</a>
+<a class="sourceLine" id="cb18-152" data-line-number="152">        <span class="cf">yield</span> DailyOil(last_api, np.array(days_on), np.array(oil), prior_cum)</a>
+<a class="sourceLine" id="cb18-153" data-line-number="153"></a>
+<a class="sourceLine" id="cb18-154" data-line-number="154"><span class="kw">def</span> float_or_none(val: <span class="bu">str</span>) <span class="op">-&gt;</span> Optional[<span class="bu">float</span>]:</a>
+<a class="sourceLine" id="cb18-155" data-line-number="155">    <span class="cf">if</span> val <span class="op">==</span> <span class="st">&#39;&#39;</span>:</a>
+<a class="sourceLine" id="cb18-156" data-line-number="156">        <span class="cf">return</span> <span class="va">None</span></a>
+<a class="sourceLine" id="cb18-157" data-line-number="157">    <span class="cf">return</span> <span class="bu">float</span>(val)</a>
+<a class="sourceLine" id="cb18-158" data-line-number="158"></a>
+<a class="sourceLine" id="cb18-159" data-line-number="159"><span class="kw">def</span> read_production_file(prod_file: TextIO, header: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>, <span class="op">**</span>csvkw</a>
+<a class="sourceLine" id="cb18-160" data-line-number="160">        ) <span class="op">-&gt;</span> Iterator[MonthlyRecord]:</a>
+<a class="sourceLine" id="cb18-161" data-line-number="161">    reader <span class="op">=</span> csv.reader(prod_file, <span class="op">**</span>csvkw)</a>
+<a class="sourceLine" id="cb18-162" data-line-number="162">    <span class="cf">if</span> header:</a>
+<a class="sourceLine" id="cb18-163" data-line-number="163">        <span class="bu">next</span>(reader) <span class="co"># skip header row</span></a>
+<a class="sourceLine" id="cb18-164" data-line-number="164"></a>
+<a class="sourceLine" id="cb18-165" data-line-number="165">    <span class="cf">for</span> (api, yr, mo, o, g, w) <span class="kw">in</span> reader:</a>
+<a class="sourceLine" id="cb18-166" data-line-number="166">        <span class="cf">yield</span> MonthlyRecord(api, <span class="bu">int</span>(yr), <span class="bu">int</span>(mo),</a>
+<a class="sourceLine" id="cb18-167" data-line-number="167">                float_or_none(o), float_or_none(g), float_or_none(w))</a>
+<a class="sourceLine" id="cb18-168" data-line-number="168"></a>
+<a class="sourceLine" id="cb18-169" data-line-number="169"><span class="kw">def</span> main(argv: List[<span class="bu">str</span>]) <span class="op">-&gt;</span> <span class="bu">int</span>:</a>
+<a class="sourceLine" id="cb18-170" data-line-number="170">    <span class="cf">if</span> <span class="bu">len</span>(argv) <span class="op">!=</span> <span class="dv">2</span>:</a>
+<a class="sourceLine" id="cb18-171" data-line-number="171">        <span class="bu">print</span>(<span class="ss">f&#39;Usage: </span><span class="sc">{</span>argv[<span class="dv">0</span>]<span class="sc">}</span><span class="ss"> production-file&#39;</span>, <span class="bu">file</span><span class="op">=</span>sys.stderr)</a>
+<a class="sourceLine" id="cb18-172" data-line-number="172">        <span class="cf">return</span> <span class="dv">1</span></a>
+<a class="sourceLine" id="cb18-173" data-line-number="173"></a>
+<a class="sourceLine" id="cb18-174" data-line-number="174">    <span class="cf">with</span> <span class="bu">open</span>(argv[<span class="dv">1</span>], <span class="st">&#39;r&#39;</span>, newline<span class="op">=</span><span class="st">&#39;&#39;</span>) <span class="im">as</span> production_file:</a>
+<a class="sourceLine" id="cb18-175" data-line-number="175">        data <span class="op">=</span> read_production_file(production_file, delimiter<span class="op">=</span><span class="st">&#39;</span><span class="ch">\t</span><span class="st">&#39;</span>)</a>
+<a class="sourceLine" id="cb18-176" data-line-number="176">        <span class="cf">for</span> well <span class="kw">in</span> from_monthly(data):</a>
+<a class="sourceLine" id="cb18-177" data-line-number="177">            <span class="cf">if</span> well.prior_cum <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</a>
+<a class="sourceLine" id="cb18-178" data-line-number="178">                <span class="bu">print</span>(<span class="ss">f&#39;</span><span class="sc">{</span>well<span class="sc">.</span>api<span class="sc">}</span><span class="ss">: production prior to 1993&#39;</span>,</a>
+<a class="sourceLine" id="cb18-179" data-line-number="179">                        <span class="bu">file</span><span class="op">=</span>sys.stderr)</a>
+<a class="sourceLine" id="cb18-180" data-line-number="180">                <span class="cf">continue</span></a>
+<a class="sourceLine" id="cb18-181" data-line-number="181"></a>
+<a class="sourceLine" id="cb18-182" data-line-number="182">            shift, filtered <span class="op">=</span> well.peak_forward()</a>
+<a class="sourceLine" id="cb18-183" data-line-number="183">            <span class="cf">if</span> shift <span class="op">&gt;</span> PEAK_SHIFT_MAX:</a>
+<a class="sourceLine" id="cb18-184" data-line-number="184">                <span class="bu">print</span>(<span class="ss">f&#39;</span><span class="sc">{</span>well<span class="sc">.</span>api<span class="sc">}</span><span class="ss">: peak occurs too late for fitting&#39;</span>,</a>
+<a class="sourceLine" id="cb18-185" data-line-number="185">                        <span class="bu">file</span><span class="op">=</span>sys.stderr)</a>
+<a class="sourceLine" id="cb18-186" data-line-number="186">                <span class="cf">continue</span></a>
+<a class="sourceLine" id="cb18-187" data-line-number="187"></a>
+<a class="sourceLine" id="cb18-188" data-line-number="188">            filtered <span class="op">=</span> filtered.no_downtime()</a>
+<a class="sourceLine" id="cb18-189" data-line-number="189">            <span class="cf">if</span> <span class="bu">len</span>(filtered.days_on) <span class="op">&lt;</span> MIN_PTS_FIT:</a>
+<a class="sourceLine" id="cb18-190" data-line-number="190">                <span class="bu">print</span>(<span class="ss">f&#39;</span><span class="sc">{</span>well<span class="sc">.</span>api<span class="sc">}</span><span class="ss">: not enough data&#39;</span>, <span class="bu">file</span><span class="op">=</span>sys.stderr)</a>
+<a class="sourceLine" id="cb18-191" data-line-number="191">                <span class="cf">continue</span></a>
+<a class="sourceLine" id="cb18-192" data-line-number="192"></a>
+<a class="sourceLine" id="cb18-193" data-line-number="193">            plt.semilogy(filtered.days_on, filtered.oil)</a>
+<a class="sourceLine" id="cb18-194" data-line-number="194">            best_fit <span class="op">=</span> filtered.best_fit()</a>
+<a class="sourceLine" id="cb18-195" data-line-number="195">            plt.semilogy(well.days_on, best_fit.rate(well.days_on <span class="op">/</span> YEAR_DAYS))</a>
+<a class="sourceLine" id="cb18-196" data-line-number="196">            plt.savefig(<span class="ss">f&#39;plots/</span><span class="sc">{</span>well<span class="sc">.</span>api<span class="sc">}</span><span class="ss">.png&#39;</span>)</a>
+<a class="sourceLine" id="cb18-197" data-line-number="197">            plt.close()</a>
+<a class="sourceLine" id="cb18-198" data-line-number="198"></a>
+<a class="sourceLine" id="cb18-199" data-line-number="199">    <span class="cf">return</span> <span class="dv">0</span></a>
+<a class="sourceLine" id="cb18-200" data-line-number="200"></a>
+<a class="sourceLine" id="cb18-201" data-line-number="201"><span class="cf">if</span> <span class="va">__name__</span> <span class="op">==</span> <span class="st">&#39;__main__&#39;</span>:</a>
+<a class="sourceLine" id="cb18-202" data-line-number="202">    sys.exit(main(sys.argv))</a></code></pre>
+<p>Our peak-forward and downtime filters return new <code>DailyOil</code> objects: remember, we’ve made our classes immutable (<code>frozen</code>), so (just like in functional programming languages) we return altered copies of objects rather than mutate their internal state. This also has the advantage of ensuring that the original, unaltered, data sticks around for comparison!</p>
+<p>The “mid-month” logic uses Python’s built-in libraries for date and time manipulation. Everything is done on a “calendar month” basis, which is just to say that by contrast to certain software tools, we actually recognize the fact that “30 days hath September” when translating monthly volumes to daily average rates.</p>
+<p>The <code>read_production_file</code> and <code>from_monthly</code> functions are interesting in that they take advantage of Python’s support for <a href="https://en.wikipedia.org/wiki/Generator_(computer_programming)">generators</a> to achieve streaming processing of the input data. Remember, the input file may be very large, but to fit one well at a time we need at most enough memory to store that specific well’s production data. Rather than read the TSV file “eagerly” to a list, we <code>yield</code> rows one at a time. The <code>from_monthly</code> function takes advantage of the known ordering of the rows to yield one well’s worth of production at a time.</p>
+<p><code>main</code>’s type signature is like C’s <code>int main(int argc, char *argv[])</code>: we take a list of command-line arguments and return an exit status to the operating system.</p>
+<h3 class="title">Results</h3>
+<p>We can run the program against our example file (remember to typecheck first!):</p>
+<pre><code>mypy pydca.py
+python pydca.py data/eddy.tsv</code></pre>
+<p>This will generate warning messages about any skipped wells, and write per-well plots to the <code>plots/</code> directory.</p>
+<p>On my workstation, this runs in a minute or two against the all-Eddy-County data set (this is excerpted in the GitHub repository) and produces fits for 251 wells (with many others skipped due to the criteria we imposed). This performance is, in my opinion, adequate for a reservoir engineering or evaluation “quick look” workflow. We could do better, but that’s a deep topic for another time.</p>
+<p>How do the fits look? They’re OK. Some look quite good:<br />
+<img class="centered" alt="a decent fit to API# 3001533543" src="/images/pydca_3001533543.png"></p>
+<p>Others look pretty poor, and might reflect flaws in the data or in our filtering process. On the other hand, 20 barrels per day isn’t much of a well to worry about anyway!<br />
+<img class="centered" alt="a cruddy fit to a cruddy well, API# 3001503162" src="/images/pydca_3001503162.png"></p>
+<p>Finally, some hint at the limitations of basic Arps decline curves which I mentioned previously. Even though the absolute volumes are low, I’d argue that this fit overstates reserves because the late-time behavior has a distinctly “steeper” character than the early-time behavior. We should probably consider one of the many models which allow for fitting multiple flow regimes, which is a great topic to consult a reservoir engineer about, or your favorite consultant.<br />
+<img class="centered" alt="hyperbolic decline is probably not the right model for API# 3001527703" src="/images/pydca_3001527703.png"></p>
+
+        <!--#include file="/include/after.html" -->
+    </body>
+</html>
