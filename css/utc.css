@@ -156,6 +156,14 @@ img.centered {
     overflow: visible;
 }
 
+#modeswitch {
+    float: right;
+}
+
+#modeswitch:hover {
+    cursor: pointer;
+}
+
 /* all below from pandoc, with tweaks */
 a.sourceLine {
     display: inline-block;

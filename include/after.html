@@ -4,4 +4,19 @@
 <div id="footer">
     <!--#config timefmt="%Y" -->
     <h6>&copy; <!--#echo var="DATE_LOCAL" --> dwt | terminus data science, LLC</h6>
+    <span id="modeswitch" onclick="modeswitch();">high-contrast mode</span>
 </div>
+<script type="text/javascript">
+function modeswitch()
+{
+    var switcher = document.getElementById('modeswitch');
+    var mainstyle = document.getElementById('mainstyle');
+    if (switcher.innerText == "high-contrast mode") {
+        mainstyle.href = "/css/ez.css";
+        switcher.innerText = "dark mode";
+    } else {
+        mainstyle.href = "/css/utc.css";
+        switcher.innerText = "high-contrast mode";
+    }
+}
+</script>
