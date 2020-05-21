@@ -1,8 +1,8 @@
 html {
-    background: #333333;
-    color: #eeeeee;
+    background: white;
+    color: black;
     font-family: 'Century Gothic', 'Didact Gothic', 'Futura', sans-serif;
-    font-size: 12pt;
+    font-size: 14pt;
 }
 
 body {
@@ -12,7 +12,7 @@ body {
 
 h1, h2, h3, h4, h5, h6 {
     font-family: 'Jura', 'Consolas', 'Courier New', monospace;
-    color: khaki;
+    color: goldenrod;
 }
 
 h1.logo {
@@ -31,17 +31,16 @@ h3.comment {
     font-size: large;
 }
 
-
 .date {
     color: indianred;
 }
 
 .title {
-    color: darkkhaki;
+    color: goldenrod;
 }
 
 .comment {
-    color: skyblue;
+    color: navy;
 }
 
 #header {
@@ -54,11 +53,11 @@ h3.comment {
 }
 
 a:link {
-    color: lightblue;
+    color: navy;
 }
 
 a:visited {
-    color: navajowhite;
+    color: sienna;
 }
 
 a:hover {
@@ -69,7 +68,7 @@ a:hover {
 .nav a {
     font-family: 'Jura', 'Consolas', 'Courier New', monospace;
     font-size: large;
-    color: palegreen;
+    color: darkgeen;
 }
 
 .nav a:hover {
@@ -92,14 +91,14 @@ a:hover {
     width: 100%;
     margin: 2em 0 0 0;
     padding: 0;
-    background-color: #c2bfa5;
-    color: black;
+    background-color: black;
+    color: white;
 }
 
 #footer h5, h6 {
     margin: 0;
     padding: 10px 1em;
-    color: black;
+    color: white;
 }
 
 #footer h6 {
@@ -131,7 +130,7 @@ div.linkcerpt p:first-of-type {
 }
 
 blockquote {
-    color: skyblue;
+    color: navy;
 }
 
 blockquote.code-output {
@@ -167,6 +166,7 @@ a.sourceLine {
 pre.sourceCode {
     border: 2px solid #c2bfa5;
     padding: 1em;
+    word-wrap: anywhere;
     overflow-x: auto;
 }
 
