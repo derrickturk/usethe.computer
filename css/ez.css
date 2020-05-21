@@ -15,24 +15,28 @@ h1, h2, h3, h4, h5, h6 {
     color: goldenrod;
 }
 
-h1.logo {
+h1 {
     font-size: xx-large;
 }
 
-h2.title {
+h2 {
     font-size: x-large;
 }
 
-h3.title {
-    font-size: x-large;
-}
-
-h3.comment {
+h3 {
     font-size: large;
 }
 
-h3.date {
+h4 {
     font-size: large;
+}
+
+h5 {
+    font-size: medium;
+}
+
+h6 {
+    font-size: small;
 }
 
 .date {
