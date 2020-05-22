@@ -3,6 +3,7 @@ html {
     color: black;
     font-family: 'Century Gothic', 'Didact Gothic', 'Futura', sans-serif;
     font-size: 14pt;
+    -webkit-text-size-adjust: 100%;
 }
 
 body {
