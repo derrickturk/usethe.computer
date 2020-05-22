@@ -71,6 +71,21 @@ h6 {
     #header {
         flex-flow: column;
     }
+
+    .nav a {
+        font-size: medium;
+    }
+
+    img {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    #modeswitch {
+        float: none;
+        display: block;
+    }
 }
 
 a:link {
@@ -161,6 +176,7 @@ blockquote.code-output {
     margin: 0 auto;
     min-width: calc(100% - 25px - 1em);
     border-radius: 5px;
+    overflow-x: auto;
 }
 
 img.centered {
