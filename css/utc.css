@@ -80,13 +80,6 @@ h6 {
     }
 }
 
-@media (max-width: 480px) {
-    #modeswitch {
-        float: none;
-        display: block;
-    }
-}
-
 a:link {
     color: lightblue;
 }
