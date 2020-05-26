@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <!--#set var="title" value="Minimalist DCA in Python" -->
+        <!--#include file="/include/head.html" -->
+    </head>
+    <body>
+        <!--#include file="/include/before.html" -->
+        <h2 class="title">The Shadow Knows</h2>
+        <h3 class="date">2020-05-26</h3>
+
+<blockquote>
+<p>Everything which is not forbidden is allowed.<br />
+–principle of English common law</p>
+</blockquote>
+<blockquote>
+<p>Nothing is true; everything is permitted.<br />
+–Hassan i-Sabbah (attributed)</p>
+</blockquote>
+<p>It’s a nightmare scenario: trapped behind enemy lines with no hope for rescue. For unfathomable reasons of bureaucracy, your access to Turing-complete tools of the trade has been denied. Will you fight? Or will you perish like a dog (in a mire of spreadsheets)?</p>
+<p>Ok, that’s a little dramatic. But it’s a common-enough dilemma: due to ill-considered IT policies, you don’t have access to the tools you need to efficiently automate tedious tasks: compilers, interpreters, debuggers. You can accept defeat and turn to memorizing keyboard shortcuts… or you can join the League of Shadows.</p>
+<h3 class="title">But First, an Impassioned Plea for Sanity from our Sponsors</h3>
+<p>“Shadow IT” is right up there with the British “Shadow Chancellor” on the list of “things with a very high ratio of how cool they sound to how cool they are”. It’s a scare phrase, too often used to argue for total lockdown of an organization’s computing tools. In the parlance, “shadow IT” are all those things users do to run code without going through Channels<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a>.</p>
+<p>In more enlightened eras, before the current Dark Age, we called this “end-user computing” and we celebrated it. There were entire journals dedicated to academic research on making programming tools more accessible to average users, and million-dollar products aimed at that precise market.</p>
+<p>If you are in a position to make decisions on IT policy, my plea is this: trust, but verify. It’s absolutely correct to be concerned about security threats, and to take precautions regarding the privileges users are able to exercise on your organization’s computing systems. However, many proposed policies are “technical solutions to social problems”. If you trust your employees enough to give them access to proprietary data, why not trust them to responsibly use computing tools in the most efficient way? The alternative is a self-inflicted return to inefficient and error-prone manual processes.</p>
+<p>Furthermore, it’s not even practically possibly to deny the ability to “run code” on a general-purpose computer. That’s exactly the point of these fascinating machines: to run programs! The line between code and data, between information and interpretation, is paper-thin. Even if you white-list executables, are you sure none of the approved programs are <a href="https://en.wikipedia.org/wiki/Turing_completeness">Turing-complete</a> interpreters themselves? Many an innocent-seeming “parser” turns out to be an <a href="http://langsec.org">interpreter for arbitrary code execution</a>, after all.</p>
+<p>It’s a hard problem! My (imperfect) solution? First, technical measures to enforce <em>capabilities</em>: access to file systems, databases, network I/O, etc. at a fine-grained level. Second, and more importantly, policies, procedures, and governance—on paper, not in code—which clearly set expectations and create the accountability that needs to accompany trust.</p>
+<p>Let’s turn away from questions of policy and governance, and put ourselves back in the shoes of our programmer “behind enemy lines”. What options do we have, on the typical corporate Windows box, to write and execute programs?</p>
+<h3 class="title">What We Do in the Shadows</h3>
+<p>Way back in the day, many computers would boot directly to an end-user-friendly programming environment (often, a flavor of BASIC). Attitudes and expectations have changed, and neither member of the current consumer operating system duopoly provides this level of accessible programmability. However, that’s not to say that no programming tools are available even on a standard Windows installation.</p>
+<p>The first place to check is the <a href="https://dotnet.microsoft.com/">Microsoft .NET Framework</a>. Bundled with Windows for quite a few versions now, .NET provides a nice programming environment for GUI and console applications on multiple platforms. The version of the .NET Framework bundled with Windows also provides compilers for the <a href="https://docs.microsoft.com/en-us/dotnet/csharp/">C#</a> and <a href="https://docs.microsoft.com/en-us/dotnet/visual-basic/">Visual Basic.NET</a>. Visual Basic still gives me flashbacks to Excel VBA macro <code>HELL</code> (the traditional place to <code>On Error GoTo</code>), so we’ll look at C#.</p>
+<p>The C# compiler bundled with the currently-distributed version of the .NET Framework only supports the language up to version 5.0. Microsoft has been aggressively updating C# in recent years, seemingly driven by alternating jealousy of C++, then Haskell, then C++, then Haskell, and so on. In any case, C# 5.0 is a perfectly fine language for the sorts of things we’re likely to want to do.</p>
+<p>For each language we consider, we’ll write both a “hello world” program and a simple program to copy a file from one location to another. This is to serve as a stand-in for a typical automation task, and to provide a slightly bigger taste of the language.</p>
+<p>Our C# “hello world” (<code>Hello.cs</code>):</p>
+<pre class="sourceCode c#" id="cb1"><code class="sourceCode cs"><a class="sourceLine" id="cb1-1" data-line-number="1"><span class="kw">using</span> System;</a>
+<a class="sourceLine" id="cb1-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb1-3" data-line-number="3"><span class="kw">class</span> Hello</a>
+<a class="sourceLine" id="cb1-4" data-line-number="4">{</a>
+<a class="sourceLine" id="cb1-5" data-line-number="5">    <span class="kw">public</span> <span class="kw">static</span> <span class="dt">void</span> <span class="fu">Main</span>()</a>
+<a class="sourceLine" id="cb1-6" data-line-number="6">    {</a>
+<a class="sourceLine" id="cb1-7" data-line-number="7">        Console.<span class="fu">WriteLine</span>(<span class="st">&quot;hello world&quot;</span>);</a>
+<a class="sourceLine" id="cb1-8" data-line-number="8">    }</a>
+<a class="sourceLine" id="cb1-9" data-line-number="9">}</a></code></pre>
+<p>We’ll use the C# compiler <code>csc.exe</code> deployed with the .NET Framework (the Visual Basic compiler is <code>vbc.exe</code> in the same directory), then run our program:</p>
+<pre><code>&gt; C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe Hello.cs
+&gt; Hello</code></pre>
+<blockquote class="code-output">
+<p><code>hello world</code></p>
+</blockquote>
+<p>Here’s an example which copies the file given by the first command-line argument to the path given by the second (<code>FileCopy.cs</code>). I’d say “this is cheating”, but .NET really does provide a huge standard library which covers a lot of common automation tasks.</p>
+<pre class="sourceCode c#" id="cb3"><code class="sourceCode cs"><a class="sourceLine" id="cb3-1" data-line-number="1"><span class="kw">using</span> System;</a>
+<a class="sourceLine" id="cb3-2" data-line-number="2"><span class="kw">using</span> System.<span class="fu">IO</span>;</a>
+<a class="sourceLine" id="cb3-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb3-4" data-line-number="4"><span class="kw">class</span> FileCopy</a>
+<a class="sourceLine" id="cb3-5" data-line-number="5">{</a>
+<a class="sourceLine" id="cb3-6" data-line-number="6">    <span class="kw">public</span> <span class="kw">static</span> <span class="dt">void</span> <span class="fu">Main</span>(<span class="dt">string</span>[] args)</a>
+<a class="sourceLine" id="cb3-7" data-line-number="7">    {</a>
+<a class="sourceLine" id="cb3-8" data-line-number="8">        <span class="kw">if</span> (args.<span class="fu">Length</span> != <span class="dv">2</span>) {</a>
+<a class="sourceLine" id="cb3-9" data-line-number="9">            Console.<span class="fu">Error</span>.<span class="fu">WriteLine</span>(<span class="st">&quot;Usage: FileCopy src dst&quot;</span>);</a>
+<a class="sourceLine" id="cb3-10" data-line-number="10">            <span class="kw">return</span>;</a>
+<a class="sourceLine" id="cb3-11" data-line-number="11">        }</a>
+<a class="sourceLine" id="cb3-12" data-line-number="12"></a>
+<a class="sourceLine" id="cb3-13" data-line-number="13">        File.<span class="fu">Copy</span>(args[<span class="dv">0</span>], args[<span class="dv">1</span>]);</a>
+<a class="sourceLine" id="cb3-14" data-line-number="14">    }</a>
+<a class="sourceLine" id="cb3-15" data-line-number="15">}</a></code></pre>
+<p>Again, we can compile with:</p>
+<pre><code>&gt; C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe FileCopy.cs</code></pre>
+<p>What if .NET isn’t an option? Maybe we have a very odd Windows installation, or maybe executables are white-listed and we either lack the ability to run the compiler, or the ability to run the output executable. In that case, we’re going to need to find an existing (white-listed) executable which can serve as an interpreter. We have a few options.</p>
+<p>First, for simple tasks, it may be possible to write a <a href="https://en.wikipedia.org/wiki/Batch_file">batch file</a>, the crappier DOS/Windows cousin of a shell script. Batch files contain instructions executed directly by the Windows command shell <code>cmd.exe</code>. They’re frequently restricted due to their historical prevalence as a vector of e-mail attachment malware, but fundamentally they’re the right way to orchestrate execution of command-line programs on Windows.</p>
+<p>For instance, we might create a “hello world” script (<code>hello.bat</code>) using <code>echo</code>:</p>
+<pre><code>@echo off
+echo hello world</code></pre>
+<p>Or write a script which copies a file (<code>copyfile.bat</code>) from the first command-line argument to the second using <code>copy</code>:</p>
+<pre><code>@echo off
+copy %1 %2</code></pre>
+<p>Batch files can be run directly from the Windows command line; e.g.</p>
+<pre><code>&gt; hello.bat
+&gt; copyfile.bat src.txt dst.txt</code></pre>
+<p>We may also have the ability to use <a href="https://docs.microsoft.com/en-us/powershell/scripting/overview?view=powershell-7">PowerShell</a> on more recent versions of Windows. PowerShell is a more “programmable” command shell for Windows, based on the .NET Framework and an object-oriented programming model. Unfortunately, I’m violently allergic to its syntax, so you’ll have to explore that option on your own.</p>
+<p>Another old-school option, also unfortunately associated with “e-mail viruses”, is <a href="https://en.wikipedia.org/wiki/VBScript">VBScript</a>, a “dynamic” spin-off of (pre-.NET) Visual Basic. VBScript actually sits in a nice “sweet spot” for automating basic tasks; it’s easy to execute, has some affordances for both console I/O and simple GUIs (including lots of built-in dialog boxes), and is familiar to anyone who’s ever written an Excel macro.</p>
+<p>We can write a “hello world” program <code>hello.vbs</code>:</p>
+<pre class="sourceCode vb" id="cb8"><code class="sourceCode monobasic"><a class="sourceLine" id="cb8-1" data-line-number="1">WScript.Echo <span class="st">&quot;hello world&quot;</span></a></code></pre>
+<p>And run it either in “GUI mode” producing a dialog box, by invoking it directly from the shell:</p>
+<pre><code>hello.vbs</code></pre>
+<p><img class="centered" alt="hello world dialog box" src="images/shadow_vbs_hello_world.png"></p>
+<p>Or in “console mode” producing I/O in the terminal, using the <code>cscript</code> interpreter packaged with Windows:</p>
+<pre><code>cscript hello.vbs</code></pre>
+<blockquote class="code-output">
+<p><code>Microsoft (R) Windows Script Host Version 5.812</code><br />
+<code>Copyright (C) Microsoft Corporation. All rights reserved.</code></p>
+<p><code>hello world</code></p>
+</blockquote>
+<p>We can pull in a library to write a simple file copy program (<code>filecopy.vbs</code>):</p>
+<pre class="sourceCode vb" id="cb11"><code class="sourceCode monobasic"><a class="sourceLine" id="cb11-1" data-line-number="1"><span class="kw">If </span>WScript.Arguments.Count &lt;&gt; 2 <span class="kw">Then</span></a>
+<a class="sourceLine" id="cb11-2" data-line-number="2">    WScript.Echo <span class="st">&quot;Usage: filecopy.vbs src dst&quot;</span></a>
+<a class="sourceLine" id="cb11-3" data-line-number="3"><span class="kw">Else</span></a>
+<a class="sourceLine" id="cb11-4" data-line-number="4">    <span class="kw">Dim</span> fs</a>
+<a class="sourceLine" id="cb11-5" data-line-number="5">    <span class="kw">Set </span>fs = CreateObject(<span class="st">&quot;Scripting.FileSystemObject&quot;</span>)</a>
+<a class="sourceLine" id="cb11-6" data-line-number="6">    fs.CopyFile WScript.Arguments.Item(0), WScript.Arguments.Item(1)</a>
+<a class="sourceLine" id="cb11-7" data-line-number="7"><span class="kw">End If</span></a></code></pre>
+<p>The VBScript interpreter is frequently blocked, but there’s a much more common Visual Basic implementation installed on most Windows machines: the <a href="https://docs.microsoft.com/en-us/office/vba/api/overview/">Visual Basic for Applications (VBA)</a> environment used for automating Microsoft Office. It’s most commonly used in Excel and Access; since spreadsheets are ubiquitous, we’ll focus on Excel as an “application platform” for our automation needs.</p>
+<p>VBA is an interesting language; in some ways, it’s infuriating, but it’s also “an improvement on many of its successors” in others. I’ve written quite a bit introducing VBA as an engineering tool for an <a href="https://derrickturk.github.io/yp-excel-automation/">SPE webinar</a>. It’s a statically-typed (sometimes) language with surprisingly good performance, and the ability to easily call both Win32 and COM APIs.</p>
+<p>A sample VBA module, for Excel, with a “hello world” (in a dialog box) function and a fancy “copy file” routine which uses Excel’s built-in dialog boxes, might look like this:</p>
+<pre class="sourceCode vb" id="cb12"><code class="sourceCode monobasic"><a class="sourceLine" id="cb12-1" data-line-number="1"><span class="kw">Option</span> <span class="kw">Explicit</span></a>
+<a class="sourceLine" id="cb12-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb12-3" data-line-number="3"><span class="kw">Public</span> <span class="kw">Sub </span>HelloWorld()</a>
+<a class="sourceLine" id="cb12-4" data-line-number="4">    MsgBox <span class="st">&quot;hello world&quot;</span></a>
+<a class="sourceLine" id="cb12-5" data-line-number="5"><span class="kw">End Sub</span></a>
+<a class="sourceLine" id="cb12-6" data-line-number="6"></a>
+<a class="sourceLine" id="cb12-7" data-line-number="7"><span class="kw">Public</span> <span class="kw">Sub </span>CopyFile()</a>
+<a class="sourceLine" id="cb12-8" data-line-number="8">    <span class="co">&#39; GetOpenFilename returns False or a String, yuck</span></a>
+<a class="sourceLine" id="cb12-9" data-line-number="9">    <span class="kw">Dim</span> src <span class="kw">As</span> Variant</a>
+<a class="sourceLine" id="cb12-10" data-line-number="10">    src = Application.GetOpenFilename()</a>
+<a class="sourceLine" id="cb12-11" data-line-number="11">    <span class="kw">If </span>src = <span class="kw">False</span> <span class="kw">Then</span></a>
+<a class="sourceLine" id="cb12-12" data-line-number="12">        <span class="kw">Exit Sub</span></a>
+<a class="sourceLine" id="cb12-13" data-line-number="13">    <span class="kw">End If</span></a>
+<a class="sourceLine" id="cb12-14" data-line-number="14"></a>
+<a class="sourceLine" id="cb12-15" data-line-number="15">    <span class="co">&#39; same for GetSaveAsFilename</span></a>
+<a class="sourceLine" id="cb12-16" data-line-number="16">    <span class="kw">Dim</span> dst <span class="kw">As</span> Variant</a>
+<a class="sourceLine" id="cb12-17" data-line-number="17">    dst = Application.GetSaveAsFilename()</a>
+<a class="sourceLine" id="cb12-18" data-line-number="18">    <span class="kw">If </span>dst = <span class="kw">False</span> <span class="kw">Then</span></a>
+<a class="sourceLine" id="cb12-19" data-line-number="19">        <span class="kw">Exit Sub</span></a>
+<a class="sourceLine" id="cb12-20" data-line-number="20">    <span class="kw">End If</span></a>
+<a class="sourceLine" id="cb12-21" data-line-number="21"></a>
+<a class="sourceLine" id="cb12-22" data-line-number="22">    <span class="co">&#39; remember this guy from VBScript?</span></a>
+<a class="sourceLine" id="cb12-23" data-line-number="23">    <span class="kw">Dim</span> fs <span class="kw">As</span> <span class="dt">Object</span></a>
+<a class="sourceLine" id="cb12-24" data-line-number="24">    <span class="kw">Set </span>fs = CreateObject(<span class="st">&quot;Scripting.FileSystemObject&quot;</span>)</a>
+<a class="sourceLine" id="cb12-25" data-line-number="25">    fs.CopyFile src, dst</a>
+<a class="sourceLine" id="cb12-26" data-line-number="26"><span class="kw">End Sub</span></a></code></pre>
+<p>You can get to the VBA development environment in Excel with Alt + F11. It provides an excellent set of interactive debugging tools in addition to a mediocre text editor. The example above, for instance, would be pasted into a new “Code Module”. The code can be run from the editor or by binding non-value-returning functions (<code>Public Sub</code>s in VBA lingo) to keyboard shortcuts via Excel. Plenty of words have been spilt on Excel VBA, so I won’t elaborate here. It’s a reliable option which is usually available and capable of handling most tasks, if awkwardly.</p>
+<p>This isn’t intended to be an exhaustive list of all the Turing-complete tools on a typical Windows installation (not to mention the many “accidentally Turing-complete” exploits we’ve surely ignored), so we’ll leave off with one “honorable mention”—the most popular programming language in the world: Javascript. It’s part of every browser, and certainly capable of doing any calculation we may require. User interface construction requires some knowledge of HTML and CSS, but that’s not a high barrier. The bigger problem for automation purposes is that, for very good reasons, browsers have become much more strict than they used to be in the bad old days about Javascript security. Accessing files on the local filesystem, making network connections to web APIs, and other “side-effecting” tasks are possible but difficult, and usually require both a running web server as well as some opt-in from the user. Still, it can be a handy option, especially for “calculator” or “scratchpad” applications.</p>
+<section class="footnotes">
+<hr />
+<ol>
+<li id="fn1"><p>From time to time, we may employ a synecdoche and refer to a particular lump of thus-generated source code as <em>SH</em>adow <em>IT</em>, using the traditional four-letter acronym.<a href="#fnref1" class="footnote-back">↩</a></p></li>
+</ol>
+</section>
+
+        <!--#include file="/include/after.html" -->
+    </body>
+</html>
