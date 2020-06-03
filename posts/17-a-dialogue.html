@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <!--#set var="title" value="A Dialogue" -->
+        <!--#include file="/include/head.html" -->
+    </head>
+    <body>
+        <!--#include file="/include/before.html" -->
+        <h2 class="title">A Dialogue</h2>
+        <h3 class="date">2020-06-03</h3>
+
+<p><img class="centered" alt="Socrates and Plato" src="/images/plato_socrates.jpg" height="600px"></p>
+<p>SOCRATES: what is “machine learning”?<br />
+PLATO: why, the improvement of an algorithm’s abilities by the examination of data.<br />
+SOCRATES: so, then, a linear regression on a computer is machine learning?<br />
+PLATO: quite so. a candle is not the Sun, but does it not yet illuminate?<br />
+SOCRATES: how shall I judge whether the machine has learned?<br />
+PLATO: we shall draw some plots.<br />
+SOCRATES: what, then, is a plot?<br />
+PLATO: why, a change of coordinates.</p>
+<pre class="sourceCode python" id="cb1"><code class="sourceCode python"><a class="sourceLine" id="cb1-1" data-line-number="1"><span class="im">from</span> sys <span class="im">import</span> stdout</a>
+<a class="sourceLine" id="cb1-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb1-3" data-line-number="3"><span class="kw">def</span> plot(series, width<span class="op">=</span><span class="dv">80</span>, height<span class="op">=</span><span class="dv">24</span>):</a>
+<a class="sourceLine" id="cb1-4" data-line-number="4">    <span class="kw">def</span> change_coords(s):</a>
+<a class="sourceLine" id="cb1-5" data-line-number="5">        x_min <span class="op">=</span> <span class="bu">min</span>(p[<span class="dv">0</span>] <span class="cf">for</span> p <span class="kw">in</span> s)</a>
+<a class="sourceLine" id="cb1-6" data-line-number="6">        x_max <span class="op">=</span> <span class="bu">max</span>(p[<span class="dv">0</span>] <span class="cf">for</span> p <span class="kw">in</span> s)</a>
+<a class="sourceLine" id="cb1-7" data-line-number="7">        y_min <span class="op">=</span> <span class="bu">min</span>(p[<span class="dv">1</span>] <span class="cf">for</span> p <span class="kw">in</span> s)</a>
+<a class="sourceLine" id="cb1-8" data-line-number="8">        y_max <span class="op">=</span> <span class="bu">max</span>(p[<span class="dv">1</span>] <span class="cf">for</span> p <span class="kw">in</span> s)</a>
+<a class="sourceLine" id="cb1-9" data-line-number="9">        <span class="cf">return</span> [(</a>
+<a class="sourceLine" id="cb1-10" data-line-number="10">          <span class="bu">int</span>((p[<span class="dv">0</span>] <span class="op">-</span> x_min) <span class="op">/</span> (x_max <span class="op">-</span> x_min) <span class="op">*</span> (width <span class="op">-</span> <span class="dv">1</span>)),</a>
+<a class="sourceLine" id="cb1-11" data-line-number="11">          <span class="bu">int</span>((p[<span class="dv">1</span>] <span class="op">-</span> y_min) <span class="op">/</span> (y_max <span class="op">-</span> y_min) <span class="op">*</span> (height <span class="op">-</span> <span class="dv">1</span>))</a>
+<a class="sourceLine" id="cb1-12" data-line-number="12">        ) <span class="cf">for</span> p <span class="kw">in</span> s]</a>
+<a class="sourceLine" id="cb1-13" data-line-number="13">    to_plot <span class="op">=</span> <span class="bu">dict</span>()</a>
+<a class="sourceLine" id="cb1-14" data-line-number="14">    <span class="cf">for</span> char, s <span class="kw">in</span> series.items():</a>
+<a class="sourceLine" id="cb1-15" data-line-number="15">        <span class="cf">for</span> coord <span class="kw">in</span> change_coords(s):</a>
+<a class="sourceLine" id="cb1-16" data-line-number="16">            <span class="cf">if</span> coord <span class="kw">in</span> to_plot:</a>
+<a class="sourceLine" id="cb1-17" data-line-number="17">                to_plot[coord] <span class="op">+=</span> char</a>
+<a class="sourceLine" id="cb1-18" data-line-number="18">            <span class="cf">else</span>:</a>
+<a class="sourceLine" id="cb1-19" data-line-number="19">                to_plot[coord] <span class="op">=</span> char</a>
+<a class="sourceLine" id="cb1-20" data-line-number="20">    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(height):</a>
+<a class="sourceLine" id="cb1-21" data-line-number="21">        <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(width):</a>
+<a class="sourceLine" id="cb1-22" data-line-number="22">            chars <span class="op">=</span> to_plot.get((j, height <span class="op">-</span> <span class="dv">1</span> <span class="op">-</span> i))</a>
+<a class="sourceLine" id="cb1-23" data-line-number="23">            <span class="cf">if</span> chars <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</a>
+<a class="sourceLine" id="cb1-24" data-line-number="24">                <span class="cf">if</span> <span class="bu">len</span>(chars) <span class="op">&gt;</span> <span class="dv">1</span>:</a>
+<a class="sourceLine" id="cb1-25" data-line-number="25">                    stdout.write(<span class="st">&#39;?&#39;</span>)</a>
+<a class="sourceLine" id="cb1-26" data-line-number="26">                <span class="cf">else</span>:</a>
+<a class="sourceLine" id="cb1-27" data-line-number="27">                    stdout.write(chars)</a>
+<a class="sourceLine" id="cb1-28" data-line-number="28">            <span class="cf">else</span>:</a>
+<a class="sourceLine" id="cb1-29" data-line-number="29">                stdout.write(<span class="st">&#39; &#39;</span>)</a>
+<a class="sourceLine" id="cb1-30" data-line-number="30">        stdout.write(<span class="st">&#39;</span><span class="ch">\n</span><span class="st">&#39;</span>)</a>
+<a class="sourceLine" id="cb1-31" data-line-number="31"></a>
+<a class="sourceLine" id="cb1-32" data-line-number="32">xs <span class="op">=</span> <span class="bu">list</span>(<span class="bu">range</span>(<span class="dv">10</span>))</a>
+<a class="sourceLine" id="cb1-33" data-line-number="33">ys <span class="op">=</span> [x <span class="op">**</span> <span class="dv">2</span> <span class="cf">for</span> x <span class="kw">in</span> xs]</a>
+<a class="sourceLine" id="cb1-34" data-line-number="34">plot({<span class="st">&#39;o&#39;</span>: <span class="bu">list</span>(<span class="bu">zip</span>(xs, ys))})</a></code></pre>
+<blockquote class="code-output">
+<pre><code>                                                                               o
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                      o         
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                             o                  
+                                                                                
+                                                                                
+                                                    o                           
+                                                                                
+                                                                                
+                                           o                                    
+                                                                                
+                                                                                
+                                   o                                            
+                                                                                
+                          o                                                     
+                 o                                                              
+o       o                                                                       </code></pre></blockquote>
+<p>SOCRATES: quite so. how, then, shall the machine “learn”?<br />
+PLATO: by minimizing error.<br />
+SOCRATES: and what is error?<br />
+PLATO: why, the difference between what is expected and what is found.<br />
+SOCRATES: and how shall we minimize the difference between what is expected and what is found?<br />
+PLATO: by rolling down the hill.<br />
+SOCRATES: and how do we know which way is “down”?<br />
+PLATO: by considering the rate of change.<br />
+SOCRATES: what is the rate of change?<br />
+PLATO: the rate of change is the ratio of how much this portion of hill changes in elevation to the size of this portion of the hill.</p>
+<pre class="sourceCode python" id="cb3"><code class="sourceCode python"><a class="sourceLine" id="cb3-1" data-line-number="1"><span class="kw">def</span> minimize(f, guess, eps<span class="op">=</span><span class="fl">1e-8</span>, rate<span class="op">=</span><span class="fl">1e-3</span>, max_iter<span class="op">=</span><span class="dv">10000</span>):</a>
+<a class="sourceLine" id="cb3-2" data-line-number="2">    <span class="kw">def</span> approx_f_prime(guess, f_guess):</a>
+<a class="sourceLine" id="cb3-3" data-line-number="3">        f_prime <span class="op">=</span> (f(guess <span class="op">+</span> eps) <span class="op">-</span> f_guess) <span class="op">/</span> eps</a>
+<a class="sourceLine" id="cb3-4" data-line-number="4">        <span class="cf">return</span> f_prime</a>
+<a class="sourceLine" id="cb3-5" data-line-number="5">    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(max_iter):</a>
+<a class="sourceLine" id="cb3-6" data-line-number="6">        f_guess <span class="op">=</span> f(guess)</a>
+<a class="sourceLine" id="cb3-7" data-line-number="7">        f_prime <span class="op">=</span> approx_f_prime(guess, f_guess)</a>
+<a class="sourceLine" id="cb3-8" data-line-number="8">        new_guess <span class="op">=</span> guess <span class="op">-</span> rate <span class="op">*</span> f_prime</a>
+<a class="sourceLine" id="cb3-9" data-line-number="9">        <span class="cf">if</span> <span class="bu">abs</span>(guess <span class="op">-</span> new_guess) <span class="op">&lt;</span> eps:</a>
+<a class="sourceLine" id="cb3-10" data-line-number="10">            <span class="cf">return</span> new_guess</a>
+<a class="sourceLine" id="cb3-11" data-line-number="11">        guess <span class="op">=</span> new_guess</a>
+<a class="sourceLine" id="cb3-12" data-line-number="12">    <span class="cf">return</span> <span class="va">None</span></a>
+<a class="sourceLine" id="cb3-13" data-line-number="13"></a>
+<a class="sourceLine" id="cb3-14" data-line-number="14">f <span class="op">=</span> <span class="kw">lambda</span> x: (x <span class="op">-</span> <span class="dv">2</span>) <span class="op">**</span> <span class="dv">2</span></a>
+<a class="sourceLine" id="cb3-15" data-line-number="15"><span class="bu">print</span>(minimize(f, <span class="fl">0.0</span>))</a></code></pre>
+<blockquote class="code-output">
+<p><code>1.9999950134026048</code></p>
+</blockquote>
+<p>SOCRATES: what shall we learn?<br />
+PLATO: let us find an approximation of a data set by a exponential function y = e^kx.<br />
+SOCRATES: which is to say, let us find the value of k which minimizes the error?<br />
+PLATO: quite.<br />
+SOCRATES: so, first, we must define the difference between what is expected and what is found?<br />
+PLATO: exactly so.</p>
+<pre class="sourceCode python" id="cb4"><code class="sourceCode python"><a class="sourceLine" id="cb4-1" data-line-number="1"><span class="im">from</span> math <span class="im">import</span> exp</a>
+<a class="sourceLine" id="cb4-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb4-3" data-line-number="3"><span class="kw">def</span> model(k, x):</a>
+<a class="sourceLine" id="cb4-4" data-line-number="4">    <span class="cf">return</span> exp(k <span class="op">*</span> x)</a>
+<a class="sourceLine" id="cb4-5" data-line-number="5"></a>
+<a class="sourceLine" id="cb4-6" data-line-number="6"><span class="kw">def</span> sse(k, data):</a>
+<a class="sourceLine" id="cb4-7" data-line-number="7">    <span class="cf">return</span> <span class="bu">sum</span>((model(k, x) <span class="op">-</span> y) <span class="op">**</span> <span class="dv">2</span> <span class="cf">for</span> x, y <span class="kw">in</span> data)</a>
+<a class="sourceLine" id="cb4-8" data-line-number="8"></a>
+<a class="sourceLine" id="cb4-9" data-line-number="9">NOISY_DATA <span class="op">=</span> [</a>
+<a class="sourceLine" id="cb4-10" data-line-number="10">    (<span class="fl">1.0</span>, <span class="fl">2.1</span>),</a>
+<a class="sourceLine" id="cb4-11" data-line-number="11">    (<span class="fl">2.0</span>, <span class="fl">4.6</span>),</a>
+<a class="sourceLine" id="cb4-12" data-line-number="12">    (<span class="fl">3.0</span>, <span class="fl">9.3</span>),</a>
+<a class="sourceLine" id="cb4-13" data-line-number="13">    (<span class="fl">4.0</span>, <span class="fl">20.7</span>),</a>
+<a class="sourceLine" id="cb4-14" data-line-number="14">    (<span class="fl">5.0</span>, <span class="fl">41.4</span>),</a>
+<a class="sourceLine" id="cb4-15" data-line-number="15">]</a>
+<a class="sourceLine" id="cb4-16" data-line-number="16"></a>
+<a class="sourceLine" id="cb4-17" data-line-number="17">plot({<span class="st">&#39;o&#39;</span>: NOISY_DATA})</a>
+<a class="sourceLine" id="cb4-18" data-line-number="18"><span class="bu">print</span>(sse(<span class="fl">1.0</span>, NOISY_DATA))</a>
+<a class="sourceLine" id="cb4-19" data-line-number="19"><span class="bu">print</span>(sse(<span class="fl">0.5</span>, NOISY_DATA))</a></code></pre>
+<pre><code>                                                                               o
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                           o                    
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                       o                                        
+                                                                                
+                                                                                
+                   o                                                            
+o                                                                               </code></pre>
+<blockquote class="code-output">
+<p><code>12725.389709846757</code><br />
+<code>1057.8045226772697</code></p>
+</blockquote>
+<p>SOCRATES: I see that you are trying to pull a fast one on me, PLATO. you have taken the square of the difference between that which is expected and that which is found.<br />
+PLATO: there is no deception intended - it is to make the hill smoother.<br />
+SOCRATES: so that we may roll down it more easily?<br />
+PLATO: quite so.</p>
+<pre class="sourceCode python" id="cb6"><code class="sourceCode python"><a class="sourceLine" id="cb6-1" data-line-number="1">best_k <span class="op">=</span> minimize(<span class="kw">lambda</span> k: sse(k, NOISY_DATA), <span class="fl">0.5</span>, rate<span class="op">=</span><span class="fl">1e-5</span>)</a>
+<a class="sourceLine" id="cb6-2" data-line-number="2"><span class="bu">print</span>(best_k)</a></code></pre>
+<p>SOCRATES: again I suspect deception - for you have changed the speed with which we roll down the hill.<br />
+PLATO: some hills are steeper than others.<br />
+SOCRATES: I remain skeptical. nonetheless, how shall we judge whether we have learned well?<br />
+PLATO: we shall compare that which is expected with that which is found.</p>
+<pre class="sourceCode python" id="cb7"><code class="sourceCode python"><a class="sourceLine" id="cb7-1" data-line-number="1"><span class="bu">print</span>(sse(best_k, NOISY_DATA))</a>
+<a class="sourceLine" id="cb7-2" data-line-number="2">plot({<span class="st">&#39;o&#39;</span>: NOISY_DATA, <span class="st">&#39;x&#39;</span>: [(x, model(best_k, x)) <span class="cf">for</span> x, _ <span class="kw">in</span> NOISY_DATA]})</a></code></pre>
+<blockquote class="code-output">
+<p><code>0.9738838331094835</code></p>
+<pre><code>                                                                               ?
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                           ?                    
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                       ?                                        
+                                                                                
+                                                                                
+                   ?                                                            
+?                                                                               </code></pre>
+</blockquote>
+<p>SOCRATES: from the question marks I infer that which is found is about the same as that which is expected, given the change of coordinates.<br />
+PLATO: exactly.<br />
+SOCRATES: you have said that for an algorithm to learn is to improve it’s abilities by the examination of data.<br />
+PLATO: that is so.<br />
+SOCRATES: you have shown that your algorithm’s abilities have improved at the task of repeating the data it has examined. but what of its abilities to make predictions at new, unexamined values? we do not consider the mockingbird the greatest singer among birds.<br />
+PLATO: you speak of generalization.<br />
+SOCRATES: I speak of utility, for of what value is an algorithm which can be replaced by a mockingbird?<br />
+PLATO: that which provides this utility, I call generalization.<br />
+SOCRATES: and how may we judge whether an algorithm is general?<br />
+PLATO: by testing against that which is known to us, but not examined by the algorithm, and again comparing what is expected to what is found.</p>
+<pre class="sourceCode python" id="cb9"><code class="sourceCode python"><a class="sourceLine" id="cb9-1" data-line-number="1"><span class="kw">def</span> leave_one_out(data):</a>
+<a class="sourceLine" id="cb9-2" data-line-number="2">    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(data)):</a>
+<a class="sourceLine" id="cb9-3" data-line-number="3">        train <span class="op">=</span> [d <span class="cf">for</span> j, d <span class="kw">in</span> <span class="bu">enumerate</span>(data) <span class="cf">if</span> i <span class="op">!=</span> j]</a>
+<a class="sourceLine" id="cb9-4" data-line-number="4">        test <span class="op">=</span> [data[i]]</a>
+<a class="sourceLine" id="cb9-5" data-line-number="5"></a>
+<a class="sourceLine" id="cb9-6" data-line-number="6">        best_k <span class="op">=</span> minimize(<span class="kw">lambda</span> k: sse(k, train), <span class="fl">0.5</span>, rate<span class="op">=</span><span class="fl">1e-5</span>)</a>
+<a class="sourceLine" id="cb9-7" data-line-number="7">        <span class="bu">print</span>(<span class="ss">f&#39;k = </span><span class="sc">{</span>best_k<span class="sc">}</span><span class="ss">&#39;</span>)</a>
+<a class="sourceLine" id="cb9-8" data-line-number="8">        <span class="bu">print</span>(<span class="ss">f&#39;test error = </span><span class="sc">{</span>sse(best_k, test)<span class="sc">}</span><span class="ss">&#39;</span>)</a>
+<a class="sourceLine" id="cb9-9" data-line-number="9"></a>
+<a class="sourceLine" id="cb9-10" data-line-number="10">leave_one_out(NOISY_DATA)</a></code></pre>
+<blockquote class="code-output">
+<p><code>k = 0.7462941022745024</code><br />
+<code>test error = 8.407331581956807e-05</code><br />
+<code>k = 0.7462671426037844</code><br />
+<code>test error = 0.022996313561218864</code><br />
+<code>k = 0.7463403623416127</code><br />
+<code>test error = 0.0070796292554830996</code><br />
+<code>k = 0.7446659508933553</code><br />
+<code>test error = 1.078425294824736</code><br />
+<code>k = 0.756065110727205</code><br />
+<code>test error = 5.90639954833926</code></p>
+</blockquote>
+<p>SOCRATES: I see that in each case, we arrive at almost the same model.<br />
+PLATO: and thus we believe that the algorithm generalizes.<br />
+SOCRATES: this has been most enlightening. now, may we say that this is “artificial intelligence”?<br />
+PLATO: well…<br />
+DIOGENES: get the hell away from my trash can! what’s a guy got to do to get a little peace and quiet with all these roving philosphers around?</p>
+<hr />
+<p>All code is available <a href="https://gist.github.com/derrickturk/a22e2300821c8740a34f49c553928c94">here</a>.</p>
+
+        <!--#include file="/include/after.html" -->
+    </body>
+</html>
