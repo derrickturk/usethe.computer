@@ -10,14 +10,14 @@
         <h3 class="date">2020-06-03</h3>
 
 <p><img class="centered" alt="Socrates and Plato" src="/images/plato_socrates.jpg" height="600px"></p>
-<p>SOCRATES: what is “machine learning”?<br />
-PLATO: why, the improvement of an algorithm’s abilities by the examination of data.<br />
-SOCRATES: so, then, a linear regression on a computer is machine learning?<br />
-PLATO: quite so. a candle is not the Sun, but does it not yet illuminate?<br />
-SOCRATES: how shall I judge whether the machine has learned?<br />
-PLATO: we shall draw some plots.<br />
-SOCRATES: what, then, is a plot?<br />
-PLATO: why, a change of coordinates.</p>
+<p>SOCRATES: What is “machine learning”?<br />
+PLATO: Why, the improvement of an algorithm’s abilities by the examination of data.<br />
+SOCRATES: So, then, a linear regression on a computer is machine learning?<br />
+PLATO: Quite so. A candle is not the Sun, but does it not yet illuminate?<br />
+SOCRATES: How shall I judge whether the machine has learned?<br />
+PLATO: We shall draw some plots.<br />
+SOCRATES: What, then, is a plot?<br />
+PLATO: Why, a change of coordinates.</p>
 <pre class="sourceCode python" id="cb1"><code class="sourceCode python"><a class="sourceLine" id="cb1-1" data-line-number="1"><span class="im">from</span> sys <span class="im">import</span> stdout</a>
 <a class="sourceLine" id="cb1-2" data-line-number="2"></a>
 <a class="sourceLine" id="cb1-3" data-line-number="3"><span class="kw">def</span> plot(series, width<span class="op">=</span><span class="dv">80</span>, height<span class="op">=</span><span class="dv">24</span>):</a>
@@ -77,16 +77,16 @@ PLATO: why, a change of coordinates.</p>
                           o                                                     
                  o                                                              
 o       o                                                                       </code></pre></blockquote>
-<p>SOCRATES: quite so. how, then, shall the machine “learn”?<br />
-PLATO: by minimizing error.<br />
-SOCRATES: and what is error?<br />
-PLATO: why, the difference between what is expected and what is found.<br />
-SOCRATES: and how shall we minimize the difference between what is expected and what is found?<br />
-PLATO: by rolling down the hill.<br />
-SOCRATES: and how do we know which way is “down”?<br />
-PLATO: by considering the rate of change.<br />
-SOCRATES: what is the rate of change?<br />
-PLATO: the rate of change is the ratio of how much this portion of hill changes in elevation to the size of this portion of the hill.</p>
+<p>SOCRATES: Quite so. How, then, shall the machine “learn”?<br />
+PLATO: By minimizing error.<br />
+SOCRATES: And what is error?<br />
+PLATO: Why, the difference between what is expected and what is found.<br />
+SOCRATES: And how shall we minimize the difference between what is expected and what is found?<br />
+PLATO: By rolling down the hill.<br />
+SOCRATES: And how do we know which way is “down”?<br />
+PLATO: By considering the rate of change.<br />
+SOCRATES: What is the rate of change?<br />
+PLATO: The rate of change is the ratio of how much this portion of hill changes in elevation to the size of this portion of the hill.</p>
 <pre class="sourceCode python" id="cb3"><code class="sourceCode python"><a class="sourceLine" id="cb3-1" data-line-number="1"><span class="kw">def</span> minimize(f, guess, eps<span class="op">=</span><span class="fl">1e-8</span>, rate<span class="op">=</span><span class="fl">1e-3</span>, max_iter<span class="op">=</span><span class="dv">10000</span>):</a>
 <a class="sourceLine" id="cb3-2" data-line-number="2">    <span class="kw">def</span> approx_f_prime(guess, f_guess):</a>
 <a class="sourceLine" id="cb3-3" data-line-number="3">        f_prime <span class="op">=</span> (f(guess <span class="op">+</span> eps) <span class="op">-</span> f_guess) <span class="op">/</span> eps</a>
@@ -105,12 +105,12 @@ PLATO: the rate of change is the ratio of how much this portion of hill changes 
 <blockquote class="code-output">
 <p><code>1.9999950134026048</code></p>
 </blockquote>
-<p>SOCRATES: what shall we learn?<br />
-PLATO: let us find an approximation of a data set by a exponential function y = e^kx.<br />
-SOCRATES: which is to say, let us find the value of k which minimizes the error?<br />
-PLATO: quite.<br />
-SOCRATES: so, first, we must define the difference between what is expected and what is found?<br />
-PLATO: exactly so.</p>
+<p>SOCRATES: What shall we learn?<br />
+PLATO: Let us find an approximation of a data set by a exponential function y = e^kx.<br />
+SOCRATES: Which is to say, let us find the value of k which minimizes the error?<br />
+PLATO: Quite.<br />
+SOCRATES: So, first, we must define the difference between what is expected and what is found?<br />
+PLATO: Exactly so.</p>
 <pre class="sourceCode python" id="cb4"><code class="sourceCode python"><a class="sourceLine" id="cb4-1" data-line-number="1"><span class="im">from</span> math <span class="im">import</span> exp</a>
 <a class="sourceLine" id="cb4-2" data-line-number="2"></a>
 <a class="sourceLine" id="cb4-3" data-line-number="3"><span class="kw">def</span> model(k, x):</a>
@@ -130,6 +130,7 @@ PLATO: exactly so.</p>
 <a class="sourceLine" id="cb4-17" data-line-number="17">plot({<span class="st">&#39;o&#39;</span>: NOISY_DATA})</a>
 <a class="sourceLine" id="cb4-18" data-line-number="18"><span class="bu">print</span>(sse(<span class="fl">1.0</span>, NOISY_DATA))</a>
 <a class="sourceLine" id="cb4-19" data-line-number="19"><span class="bu">print</span>(sse(<span class="fl">0.5</span>, NOISY_DATA))</a></code></pre>
+<blockquote class="code-output">
 <pre><code>                                                                               o
                                                                                 
                                                                                 
@@ -154,20 +155,19 @@ PLATO: exactly so.</p>
                                                                                 
                    o                                                            
 o                                                                               </code></pre>
-<blockquote class="code-output">
 <p><code>12725.389709846757</code><br />
 <code>1057.8045226772697</code></p>
 </blockquote>
-<p>SOCRATES: I see that you are trying to pull a fast one on me, PLATO. you have taken the square of the difference between that which is expected and that which is found.<br />
-PLATO: there is no deception intended - it is to make the hill smoother.<br />
-SOCRATES: so that we may roll down it more easily?<br />
-PLATO: quite so.</p>
+<p>SOCRATES: I see that you are trying to pull a fast one on me, PLATO. You have taken the square of the difference between that which is expected and that which is found.<br />
+PLATO: There is no deception intended&mdash;it is to make the hill smoother.<br />
+SOCRATES: So that we may roll down it more easily?<br />
+PLATO: Quite so.</p>
 <pre class="sourceCode python" id="cb6"><code class="sourceCode python"><a class="sourceLine" id="cb6-1" data-line-number="1">best_k <span class="op">=</span> minimize(<span class="kw">lambda</span> k: sse(k, NOISY_DATA), <span class="fl">0.5</span>, rate<span class="op">=</span><span class="fl">1e-5</span>)</a>
 <a class="sourceLine" id="cb6-2" data-line-number="2"><span class="bu">print</span>(best_k)</a></code></pre>
-<p>SOCRATES: again I suspect deception - for you have changed the speed with which we roll down the hill.<br />
-PLATO: some hills are steeper than others.<br />
-SOCRATES: I remain skeptical. nonetheless, how shall we judge whether we have learned well?<br />
-PLATO: we shall compare that which is expected with that which is found.</p>
+<p>SOCRATES: Again I suspect deception&mdash;for you have changed the speed with which we roll down the hill.<br />
+PLATO: Some hills are steeper than others.<br />
+SOCRATES: I remain skeptical. Nonetheless, how shall we judge whether we have learned well?<br />
+PLATO: We shall compare that which is expected with that which is found.</p>
 <pre class="sourceCode python" id="cb7"><code class="sourceCode python"><a class="sourceLine" id="cb7-1" data-line-number="1"><span class="bu">print</span>(sse(best_k, NOISY_DATA))</a>
 <a class="sourceLine" id="cb7-2" data-line-number="2">plot({<span class="st">&#39;o&#39;</span>: NOISY_DATA, <span class="st">&#39;x&#39;</span>: [(x, model(best_k, x)) <span class="cf">for</span> x, _ <span class="kw">in</span> NOISY_DATA]})</a></code></pre>
 <blockquote class="code-output">
@@ -197,16 +197,16 @@ PLATO: we shall compare that which is expected with that which is found.</p>
                    ?                                                            
 ?                                                                               </code></pre>
 </blockquote>
-<p>SOCRATES: from the question marks I infer that which is found is about the same as that which is expected, given the change of coordinates.<br />
-PLATO: exactly.<br />
-SOCRATES: you have said that for an algorithm to learn is to improve it’s abilities by the examination of data.<br />
-PLATO: that is so.<br />
-SOCRATES: you have shown that your algorithm’s abilities have improved at the task of repeating the data it has examined. but what of its abilities to make predictions at new, unexamined values? we do not consider the mockingbird the greatest singer among birds.<br />
-PLATO: you speak of generalization.<br />
+<p>SOCRATES: From the question marks I infer that which is found is about the same as that which is expected, given the change of coordinates.<br />
+PLATO: Exactly.<br />
+SOCRATES: You have said that for an algorithm to learn is to improve it’s abilities by the examination of data.<br />
+PLATO: That is so.<br />
+SOCRATES: You have shown that your algorithm’s abilities have improved at the task of repeating the data it has examined. But what of its abilities to make predictions at new, unexamined values? We do not consider the mockingbird to be the greatest singer among birds.<br />
+PLATO: You speak of generalization.<br />
 SOCRATES: I speak of utility, for of what value is an algorithm which can be replaced by a mockingbird?<br />
-PLATO: that which provides this utility, I call generalization.<br />
-SOCRATES: and how may we judge whether an algorithm is general?<br />
-PLATO: by testing against that which is known to us, but not examined by the algorithm, and again comparing what is expected to what is found.</p>
+PLATO: That which provides this utility, I call generalization.<br />
+SOCRATES: And how may we judge whether an algorithm is general?<br />
+PLATO: By testing against that which is known to us, but not examined by the algorithm, and again comparing what is expected to what is found.</p>
 <pre class="sourceCode python" id="cb9"><code class="sourceCode python"><a class="sourceLine" id="cb9-1" data-line-number="1"><span class="kw">def</span> leave_one_out(data):</a>
 <a class="sourceLine" id="cb9-2" data-line-number="2">    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(data)):</a>
 <a class="sourceLine" id="cb9-3" data-line-number="3">        train <span class="op">=</span> [d <span class="cf">for</span> j, d <span class="kw">in</span> <span class="bu">enumerate</span>(data) <span class="cf">if</span> i <span class="op">!=</span> j]</a>
@@ -230,10 +230,10 @@ PLATO: by testing against that which is known to us, but not examined by the alg
 <code>test error = 5.90639954833926</code></p>
 </blockquote>
 <p>SOCRATES: I see that in each case, we arrive at almost the same model.<br />
-PLATO: and thus we believe that the algorithm generalizes.<br />
-SOCRATES: this has been most enlightening. now, may we say that this is “artificial intelligence”?<br />
-PLATO: well…<br />
-DIOGENES: get the hell away from my trash can! what’s a guy got to do to get a little peace and quiet with all these roving philosphers around?</p>
+PLATO: And thus we believe that the algorithm generalizes.<br />
+SOCRATES: This has been most enlightening. Now, may we say that this is “artificial intelligence”?<br />
+PLATO: Well…<br />
+DIOGENES: Get the hell away from my trash can! What’s a guy got to do to get a little peace and quiet with all these roving philosphers around?</p>
 <hr />
 <p>All code is available <a href="https://gist.github.com/derrickturk/a22e2300821c8740a34f49c553928c94">here</a>.</p>
 
