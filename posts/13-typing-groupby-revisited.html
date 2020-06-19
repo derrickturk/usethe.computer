@@ -233,7 +233,7 @@
 <a class="sourceLine" id="cb11-7" data-line-number="7">  <span class="co">-- bounds-checked element access</span></a>
 <a class="sourceLine" id="cb11-8" data-line-number="8">  <span class="fu">index</span> <span class="ot">:</span> <span class="dt">Fin</span> n <span class="ot">-&gt;</span> <span class="dt">Vect</span> n a <span class="ot">-&gt;</span> a</a>
 <a class="sourceLine" id="cb11-9" data-line-number="9">  index <span class="dt">FZ</span> (x <span class="ot">::</span> <span class="fu">_</span>) <span class="fu">=</span> x</a>
-<a class="sourceLine" id="cb11-10" data-line-number="10">  index (<span class="dt">FS</span> n) (<span class="fu">_</span> <span class="ot">::</span> xs) <span class="fu">=</span> index n xs</a>
+<a class="sourceLine" id="cb11-10" data-line-number="10">  index (<span class="dt">FS</span> i) (<span class="fu">_</span> <span class="ot">::</span> xs) <span class="fu">=</span> index i xs</a>
 <a class="sourceLine" id="cb11-11" data-line-number="11"></a>
 <a class="sourceLine" id="cb11-12" data-line-number="12">  <span class="co">-- length-tracking concatenation</span></a>
 <a class="sourceLine" id="cb11-13" data-line-number="13">  <span class="fu">(++)</span> <span class="ot">:</span> <span class="dt">Vect</span> n a <span class="ot">-&gt;</span> <span class="dt">Vect</span> m a <span class="ot">-&gt;</span> <span class="dt">Vect</span> (plus n m) a</a>
@@ -375,11 +375,11 @@
 <a class="sourceLine" id="cb18-19" data-line-number="19">[<span class="st">&quot;fast&quot;</span>, <span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>), <span class="st">&quot;furious&quot;</span>] <span class="ot">:</span> <span class="dt">HVect</span> [<span class="dt">String</span>, <span class="dt">Nat</span>, <span class="dt">String</span>]</a></code></pre>
 <p>We now have everything we need to build our minimalist data frames (as before, let’s call this type a “tafra”, plural “tafrae”), because it’s the “innards” of a proper data frame).</p>
 <pre class="sourceCode idris" id="cb19"><code class="sourceCode idris"><a class="sourceLine" id="cb19-1" data-line-number="1"><span class="kw">namespace</span> <span class="dt">Tafra</span></a>
-<a class="sourceLine" id="cb19-2" data-line-number="2"><span class="co">-- a &quot;tafra&quot; is a list of same-length vectors of various types</span></a>
-<a class="sourceLine" id="cb19-3" data-line-number="3"><span class="co">-- the type is indexed by the row count and a vector of column types</span></a>
-<a class="sourceLine" id="cb19-4" data-line-number="4">  <span class="kw">data</span> <span class="dt">Tafra</span> <span class="ot">:</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Vect</span> n <span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="kw">where</span></a>
-<a class="sourceLine" id="cb19-5" data-line-number="5">    <span class="dt">Nil</span> <span class="ot">:</span> <span class="dt">Tafra</span> n []</a>
-<a class="sourceLine" id="cb19-6" data-line-number="6">    <span class="fu">(::)</span> <span class="ot">:</span> <span class="dt">Vect</span> n a <span class="ot">-&gt;</span> <span class="dt">Tafra</span> n as <span class="ot">-&gt;</span> <span class="dt">Tafra</span> n (a<span class="ot">::</span>as)</a>
+<a class="sourceLine" id="cb19-2" data-line-number="2">  <span class="co">-- a &quot;tafra&quot; is a list of same-length vectors of various types</span></a>
+<a class="sourceLine" id="cb19-3" data-line-number="3">  <span class="co">-- the type is indexed by the row count and a vector of column types</span></a>
+<a class="sourceLine" id="cb19-4" data-line-number="4">  <span class="kw">data</span> <span class="dt">Tafra</span> <span class="ot">:</span> (rows <span class="ot">:</span> <span class="dt">Nat</span>) <span class="ot">-&gt;</span> <span class="dt">Vect</span> cols <span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb19-5" data-line-number="5">    <span class="dt">Nil</span> <span class="ot">:</span> <span class="dt">Tafra</span> rows []</a>
+<a class="sourceLine" id="cb19-6" data-line-number="6">    <span class="fu">(::)</span> <span class="ot">:</span> <span class="dt">Vect</span> rows a <span class="ot">-&gt;</span> <span class="dt">Tafra</span> rows as <span class="ot">-&gt;</span> <span class="dt">Tafra</span> rows (a<span class="ot">::</span>as)</a>
 <a class="sourceLine" id="cb19-7" data-line-number="7"></a>
 <a class="sourceLine" id="cb19-8" data-line-number="8">  <span class="co">-- we can concatenate tafras with the same column types and different</span></a>
 <a class="sourceLine" id="cb19-9" data-line-number="9">  <span class="co">--   row counts &quot;vertically&quot;</span></a>
@@ -395,37 +395,37 @@
 <a class="sourceLine" id="cb19-19" data-line-number="19">  hcat (x <span class="ot">::</span> xs) y <span class="fu">=</span> x <span class="ot">::</span> hcat xs y</a>
 <a class="sourceLine" id="cb19-20" data-line-number="20"></a>
 <a class="sourceLine" id="cb19-21" data-line-number="21">  <span class="co">-- indexing by columns is simple, and returns a column vector</span></a>
-<a class="sourceLine" id="cb19-22" data-line-number="22">  <span class="fu">index</span> <span class="ot">:</span> {n<span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span></a>
-<a class="sourceLine" id="cb19-23" data-line-number="23">          {as <span class="ot">:</span> <span class="dt">Vect</span> n <span class="dt">Type</span>} <span class="ot">-&gt;</span></a>
-<a class="sourceLine" id="cb19-24" data-line-number="24">          (i <span class="ot">:</span> <span class="dt">Fin</span> n) <span class="ot">-&gt;</span></a>
-<a class="sourceLine" id="cb19-25" data-line-number="25">          <span class="dt">Tafra</span> m as <span class="ot">-&gt;</span></a>
-<a class="sourceLine" id="cb19-26" data-line-number="26">          <span class="dt">Vect</span> m (index i as)</a>
+<a class="sourceLine" id="cb19-22" data-line-number="22">  <span class="fu">index</span> <span class="ot">:</span> {cols<span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-23" data-line-number="23">          {as <span class="ot">:</span> <span class="dt">Vect</span> cols <span class="dt">Type</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-24" data-line-number="24">          (i <span class="ot">:</span> <span class="dt">Fin</span> cols) <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-25" data-line-number="25">          <span class="dt">Tafra</span> rows as <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-26" data-line-number="26">          <span class="dt">Vect</span> rows (index i as)</a>
 <a class="sourceLine" id="cb19-27" data-line-number="27">  index <span class="dt">FZ</span> [] <span class="kw">impossible</span></a>
 <a class="sourceLine" id="cb19-28" data-line-number="28">  index (<span class="dt">FS</span> <span class="fu">_</span>) [] <span class="kw">impossible</span></a>
 <a class="sourceLine" id="cb19-29" data-line-number="29">  index <span class="dt">FZ</span> (x <span class="ot">::</span> <span class="fu">_</span>) <span class="fu">=</span> x</a>
 <a class="sourceLine" id="cb19-30" data-line-number="30">  index (<span class="dt">FS</span> i) (<span class="fu">_</span> <span class="ot">::</span> xs) <span class="fu">=</span> index i xs</a>
 <a class="sourceLine" id="cb19-31" data-line-number="31"></a>
 <a class="sourceLine" id="cb19-32" data-line-number="32">  <span class="co">-- indexing by rows is trickier - we have to return a heterogeneous &quot;tuple&quot;</span></a>
-<a class="sourceLine" id="cb19-33" data-line-number="33">  <span class="fu">rindex</span> <span class="ot">:</span> <span class="dt">Fin</span> n <span class="ot">-&gt;</span> <span class="dt">Tafra</span> n as <span class="ot">-&gt;</span> <span class="dt">HVect</span> as</a>
+<a class="sourceLine" id="cb19-33" data-line-number="33">  <span class="fu">rindex</span> <span class="ot">:</span> <span class="dt">Fin</span> rows <span class="ot">-&gt;</span> <span class="dt">Tafra</span> rows as <span class="ot">-&gt;</span> <span class="dt">HVect</span> as</a>
 <a class="sourceLine" id="cb19-34" data-line-number="34">  rindex <span class="fu">_</span> [] <span class="fu">=</span> []</a>
-<a class="sourceLine" id="cb19-35" data-line-number="35">  rindex n (x <span class="ot">::</span> xs) <span class="fu">=</span> index n x <span class="ot">::</span> rindex n xs</a>
+<a class="sourceLine" id="cb19-35" data-line-number="35">  rindex i (x <span class="ot">::</span> xs) <span class="fu">=</span> index i x <span class="ot">::</span> rindex i xs</a>
 <a class="sourceLine" id="cb19-36" data-line-number="36"></a>
 <a class="sourceLine" id="cb19-37" data-line-number="37">  <span class="co">-- we can also &quot;slice&quot; by multiple row or column indices</span></a>
 <a class="sourceLine" id="cb19-38" data-line-number="38">  <span class="co">-- we&#39;ll do this a little inefficiently</span></a>
 <a class="sourceLine" id="cb19-39" data-line-number="39"></a>
 <a class="sourceLine" id="cb19-40" data-line-number="40">  <span class="co">-- &quot;column&quot; slices</span></a>
-<a class="sourceLine" id="cb19-41" data-line-number="41">  <span class="fu">slice</span> <span class="ot">:</span> {n <span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span></a>
-<a class="sourceLine" id="cb19-42" data-line-number="42">          {as <span class="ot">:</span> <span class="dt">Vect</span> n <span class="dt">Type</span>} <span class="ot">-&gt;</span></a>
-<a class="sourceLine" id="cb19-43" data-line-number="43">          (cols <span class="ot">:</span> <span class="dt">Vect</span> k (<span class="dt">Fin</span> n)) <span class="ot">-&gt;</span></a>
-<a class="sourceLine" id="cb19-44" data-line-number="44">          <span class="dt">Tafra</span> m as <span class="ot">-&gt;</span></a>
-<a class="sourceLine" id="cb19-45" data-line-number="45">          <span class="dt">Tafra</span> m (vslice cols as)</a>
+<a class="sourceLine" id="cb19-41" data-line-number="41">  <span class="fu">slice</span> <span class="ot">:</span> {cols <span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-42" data-line-number="42">          {as <span class="ot">:</span> <span class="dt">Vect</span> cols <span class="dt">Type</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-43" data-line-number="43">          (ixs <span class="ot">:</span> <span class="dt">Vect</span> k (<span class="dt">Fin</span> cols)) <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-44" data-line-number="44">          <span class="dt">Tafra</span> rows as <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-45" data-line-number="45">          <span class="dt">Tafra</span> rows (vslice ixs as)</a>
 <a class="sourceLine" id="cb19-46" data-line-number="46">  slice [] <span class="fu">_</span> <span class="fu">=</span> []</a>
 <a class="sourceLine" id="cb19-47" data-line-number="47">  slice (i <span class="ot">::</span> is) xs <span class="fu">=</span> index i xs <span class="ot">::</span> slice is xs</a>
 <a class="sourceLine" id="cb19-48" data-line-number="48"></a>
 <a class="sourceLine" id="cb19-49" data-line-number="49">  <span class="co">-- &quot;row&quot; slices</span></a>
-<a class="sourceLine" id="cb19-50" data-line-number="50">  <span class="fu">rslice</span> <span class="ot">:</span> {n <span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span></a>
-<a class="sourceLine" id="cb19-51" data-line-number="51">           (rows <span class="ot">:</span> <span class="dt">Vect</span> k (<span class="dt">Fin</span> n)) <span class="ot">-&gt;</span></a>
-<a class="sourceLine" id="cb19-52" data-line-number="52">           <span class="dt">Tafra</span> n as <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-50" data-line-number="50">  <span class="fu">rslice</span> <span class="ot">:</span> {rows <span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-51" data-line-number="51">           (ixs <span class="ot">:</span> <span class="dt">Vect</span> k (<span class="dt">Fin</span> rows)) <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-52" data-line-number="52">           <span class="dt">Tafra</span> rows as <span class="ot">-&gt;</span></a>
 <a class="sourceLine" id="cb19-53" data-line-number="53">           <span class="dt">Tafra</span> k as</a>
 <a class="sourceLine" id="cb19-54" data-line-number="54">  rslice <span class="fu">_</span> [] <span class="fu">=</span> []</a>
 <a class="sourceLine" id="cb19-55" data-line-number="55">  rslice [] (<span class="fu">_</span> <span class="ot">::</span> xs) <span class="fu">=</span> [] <span class="ot">::</span> rslice [] xs</a>
@@ -448,20 +448,20 @@
 <a class="sourceLine" id="cb19-72" data-line-number="72">  rcons (x <span class="ot">::</span> xs) (r <span class="ot">::</span> rs) <span class="fu">=</span> (x <span class="ot">::</span> r) <span class="ot">::</span> rcons xs rs</a>
 <a class="sourceLine" id="cb19-73" data-line-number="73"></a>
 <a class="sourceLine" id="cb19-74" data-line-number="74">  <span class="co">-- transpose to a row-oriented representation</span></a>
-<a class="sourceLine" id="cb19-75" data-line-number="75">  <span class="fu">transpose</span> <span class="ot">:</span> {n <span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span> <span class="dt">Tafra</span> n as <span class="ot">-&gt;</span> <span class="dt">Vect</span> n (<span class="dt">HVect</span> as)</a>
-<a class="sourceLine" id="cb19-76" data-line-number="76">  transpose {n <span class="fu">=</span> <span class="dt">Z</span>} <span class="fu">_</span> <span class="fu">=</span> []</a>
-<a class="sourceLine" id="cb19-77" data-line-number="77">  transpose {n <span class="fu">=</span> (<span class="dt">S</span> m)} xs <span class="fu">=</span> rhead xs <span class="ot">::</span> transpose (rtail xs)</a>
+<a class="sourceLine" id="cb19-75" data-line-number="75">  <span class="fu">transpose</span> <span class="ot">:</span> {rows <span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span> <span class="dt">Tafra</span> rows as <span class="ot">-&gt;</span> <span class="dt">Vect</span> rows (<span class="dt">HVect</span> as)</a>
+<a class="sourceLine" id="cb19-76" data-line-number="76">  transpose {rows <span class="fu">=</span> <span class="dt">Z</span>} <span class="fu">_</span> <span class="fu">=</span> []</a>
+<a class="sourceLine" id="cb19-77" data-line-number="77">  transpose {rows <span class="fu">=</span> (<span class="dt">S</span> m)} xs <span class="fu">=</span> rhead xs <span class="ot">::</span> transpose (rtail xs)</a>
 <a class="sourceLine" id="cb19-78" data-line-number="78"></a>
 <a class="sourceLine" id="cb19-79" data-line-number="79">  <span class="co">-- rebuild a tafra from a transposed representation</span></a>
-<a class="sourceLine" id="cb19-80" data-line-number="80">  <span class="fu">untranspose</span> <span class="ot">:</span> {n <span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span></a>
-<a class="sourceLine" id="cb19-81" data-line-number="81">                {k <span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span></a>
-<a class="sourceLine" id="cb19-82" data-line-number="82">                {as <span class="ot">:</span> <span class="dt">Vect</span> k <span class="dt">Type</span>} <span class="ot">-&gt;</span></a>
-<a class="sourceLine" id="cb19-83" data-line-number="83">                <span class="dt">Vect</span> n (<span class="dt">HVect</span> as) <span class="ot">-&gt;</span></a>
-<a class="sourceLine" id="cb19-84" data-line-number="84">                <span class="dt">Tafra</span> n as</a>
-<a class="sourceLine" id="cb19-85" data-line-number="85">  untranspose {n <span class="fu">=</span> <span class="dt">Z</span>} {as <span class="fu">=</span> []} [] <span class="fu">=</span> []</a>
-<a class="sourceLine" id="cb19-86" data-line-number="86">  untranspose {n <span class="fu">=</span> <span class="dt">Z</span>} {as <span class="fu">=</span> (t <span class="ot">::</span> ts)} [] <span class="fu">=</span> [] <span class="ot">::</span> untranspose []</a>
-<a class="sourceLine" id="cb19-87" data-line-number="87">  untranspose {n <span class="fu">=</span> (<span class="dt">S</span> m)} {as <span class="fu">=</span> []} <span class="fu">_</span> <span class="fu">=</span> []</a>
-<a class="sourceLine" id="cb19-88" data-line-number="88">  untranspose {n <span class="fu">=</span> (<span class="dt">S</span> m)} {as <span class="fu">=</span> (t <span class="ot">::</span> ts)} (xs <span class="ot">::</span> yss) <span class="fu">=</span></a>
+<a class="sourceLine" id="cb19-80" data-line-number="80">  <span class="fu">untranspose</span> <span class="ot">:</span> {rows <span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-81" data-line-number="81">                {cols <span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-82" data-line-number="82">                {as <span class="ot">:</span> <span class="dt">Vect</span> cols <span class="dt">Type</span>} <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-83" data-line-number="83">                <span class="dt">Vect</span> rows (<span class="dt">HVect</span> as) <span class="ot">-&gt;</span></a>
+<a class="sourceLine" id="cb19-84" data-line-number="84">                <span class="dt">Tafra</span> rows as</a>
+<a class="sourceLine" id="cb19-85" data-line-number="85">  untranspose {rows <span class="fu">=</span> <span class="dt">Z</span>} {as <span class="fu">=</span> []} [] <span class="fu">=</span> []</a>
+<a class="sourceLine" id="cb19-86" data-line-number="86">  untranspose {rows <span class="fu">=</span> <span class="dt">Z</span>} {as <span class="fu">=</span> (t <span class="ot">::</span> ts)} [] <span class="fu">=</span> [] <span class="ot">::</span> untranspose []</a>
+<a class="sourceLine" id="cb19-87" data-line-number="87">  untranspose {rows <span class="fu">=</span> (<span class="dt">S</span> m)} {as <span class="fu">=</span> []} <span class="fu">_</span> <span class="fu">=</span> []</a>
+<a class="sourceLine" id="cb19-88" data-line-number="88">  untranspose {rows <span class="fu">=</span> (<span class="dt">S</span> m)} {as <span class="fu">=</span> (t <span class="ot">::</span> ts)} (xs <span class="ot">::</span> yss) <span class="fu">=</span></a>
 <a class="sourceLine" id="cb19-89" data-line-number="89">    (head xs <span class="ot">::</span> map head yss) <span class="ot">::</span> untranspose (tail xs <span class="ot">::</span> map tail yss)</a>
 <a class="sourceLine" id="cb19-90" data-line-number="90"></a>
 <a class="sourceLine" id="cb19-91" data-line-number="91">  <span class="co">-- a zero-row tafra of any type</span></a>
@@ -693,6 +693,7 @@ about the number of rows.
 The answer, of course, is the combination of existential types (to quantify over
 the statically unknown row count) and option (<code>Maybe</code>) types to
 indicate the possibility of failure during parsing.
+<p>PPPS: I've updated a few variable names for clarity, based on some very helpful feedback.
 
         <!--#include file="/include/after.html" -->
     </body>

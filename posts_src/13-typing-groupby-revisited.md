@@ -479,7 +479,7 @@ namespace Vect
   -- bounds-checked element access
   index : Fin n -> Vect n a -> a
   index FZ (x :: _) = x
-  index (FS n) (_ :: xs) = index n xs
+  index (FS i) (_ :: xs) = index i xs
 
   -- length-tracking concatenation
   (++) : Vect n a -> Vect m a -> Vect (plus n m) a
@@ -682,11 +682,11 @@ let's call this type a "tafra", plural "tafrae"), because it's the "innards"
 of a proper data frame).
 ```idris
 namespace Tafra
--- a "tafra" is a list of same-length vectors of various types
--- the type is indexed by the row count and a vector of column types
-  data Tafra : Nat -> Vect n Type -> Type where
-    Nil : Tafra n []
-    (::) : Vect n a -> Tafra n as -> Tafra n (a::as)
+  -- a "tafra" is a list of same-length vectors of various types
+  -- the type is indexed by the row count and a vector of column types
+  data Tafra : (rows : Nat) -> Vect cols Type -> Type where
+    Nil : Tafra rows []
+    (::) : Vect rows a -> Tafra rows as -> Tafra rows (a::as)
 
   -- we can concatenate tafras with the same column types and different
   --   row counts "vertically"
@@ -702,37 +702,37 @@ namespace Tafra
   hcat (x :: xs) y = x :: hcat xs y
 
   -- indexing by columns is simple, and returns a column vector
-  index : {n: Nat} ->
-          {as : Vect n Type} ->
-          (i : Fin n) ->
-          Tafra m as ->
-          Vect m (index i as)
+  index : {cols: Nat} ->
+          {as : Vect cols Type} ->
+          (i : Fin cols) ->
+          Tafra rows as ->
+          Vect rows (index i as)
   index FZ [] impossible
   index (FS _) [] impossible
   index FZ (x :: _) = x
   index (FS i) (_ :: xs) = index i xs
 
   -- indexing by rows is trickier - we have to return a heterogeneous "tuple"
-  rindex : Fin n -> Tafra n as -> HVect as
+  rindex : Fin rows -> Tafra rows as -> HVect as
   rindex _ [] = []
-  rindex n (x :: xs) = index n x :: rindex n xs
+  rindex i (x :: xs) = index i x :: rindex i xs
 
   -- we can also "slice" by multiple row or column indices
   -- we'll do this a little inefficiently
 
   -- "column" slices
-  slice : {n : Nat} ->
-          {as : Vect n Type} ->
-          (cols : Vect k (Fin n)) ->
-          Tafra m as ->
-          Tafra m (vslice cols as)
+  slice : {cols : Nat} ->
+          {as : Vect cols Type} ->
+          (ixs : Vect k (Fin cols)) ->
+          Tafra rows as ->
+          Tafra rows (vslice ixs as)
   slice [] _ = []
   slice (i :: is) xs = index i xs :: slice is xs
 
   -- "row" slices
-  rslice : {n : Nat} ->
-           (rows : Vect k (Fin n)) ->
-           Tafra n as ->
+  rslice : {rows : Nat} ->
+           (ixs : Vect k (Fin rows)) ->
+           Tafra rows as ->
            Tafra k as
   rslice _ [] = []
   rslice [] (_ :: xs) = [] :: rslice [] xs
@@ -755,20 +755,20 @@ namespace Tafra
   rcons (x :: xs) (r :: rs) = (x :: r) :: rcons xs rs
 
   -- transpose to a row-oriented representation
-  transpose : {n : Nat} -> Tafra n as -> Vect n (HVect as)
-  transpose {n = Z} _ = []
-  transpose {n = (S m)} xs = rhead xs :: transpose (rtail xs)
+  transpose : {rows : Nat} -> Tafra rows as -> Vect rows (HVect as)
+  transpose {rows = Z} _ = []
+  transpose {rows = (S m)} xs = rhead xs :: transpose (rtail xs)
 
   -- rebuild a tafra from a transposed representation
-  untranspose : {n : Nat} ->
-                {k : Nat} ->
-                {as : Vect k Type} ->
-                Vect n (HVect as) ->
-                Tafra n as
-  untranspose {n = Z} {as = []} [] = []
-  untranspose {n = Z} {as = (t :: ts)} [] = [] :: untranspose []
-  untranspose {n = (S m)} {as = []} _ = []
-  untranspose {n = (S m)} {as = (t :: ts)} (xs :: yss) =
+  untranspose : {rows : Nat} ->
+                {cols : Nat} ->
+                {as : Vect cols Type} ->
+                Vect rows (HVect as) ->
+                Tafra rows as
+  untranspose {rows = Z} {as = []} [] = []
+  untranspose {rows = Z} {as = (t :: ts)} [] = [] :: untranspose []
+  untranspose {rows = (S m)} {as = []} _ = []
+  untranspose {rows = (S m)} {as = (t :: ts)} (xs :: yss) =
     (head xs :: map head yss) :: untranspose (tail xs :: map tail yss)
 
   -- a zero-row tafra of any type
