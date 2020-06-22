@@ -610,7 +610,7 @@ xxxx
 > Expression({'first': Expression(23), 'second': Expression({'nested': Expression(<TriBool.TRUE: 2>)}), 'third': Expression([Expression(<TriBool.TRUE: 2>), Expression(<TriBool.FALSE: 1>)])})
 ```
 
-The `parse error" message is, of course, unsatisfying.
+The `parse error` message is, of course, unsatisfying.
 Our choice to model parsers on top of the option monad means that we don't get any additional information in the failure case.
 For some uses (say, parsing data from a web API whose results should be well-formed except in the case of a truly catastrophic condition), this may be totally acceptable.
 For interactive use by humans (say, as part of a domain-specific language compiler), this is inadequate.
