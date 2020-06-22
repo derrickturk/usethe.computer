@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <!--#set var="title" value="Irregular Expressions: You Need a Parser" -->
+        <!--#include file="/include/head.html" -->
+    </head>
+    <body>
+        <!--#include file="/include/before.html" -->
+        <h2 class="title">Irregular Expressions: You Need a Parser</h2>
+        <h3 class="date">2020-06-22</h3>
+
+<blockquote>
+<p>Some people, when confronted with a problem, think “I know, I’ll use regular expressions.” Now they have two problems.<br />
+–Jamie Zawinski</p>
+</blockquote>
+<p>When I first encountered <a href="https://en.wikipedia.org/wiki/Regular_expression">regular expressions</a>, while learning Perl some summer in the mid-’00s, it was a revelation. Suppose I needed (as was not uncommon that summer) to pick out oil and gas well <a href="https://en.wikipedia.org/wiki/API_well_number">API numbers</a> from free-form text. API numbers come in 10, 12, and 14-digit forms; sometimes, like a credit card number or a phone number, we use little typographic flourishes like dashes or white space to separate their “stanzas” (of two, three, and five digits, followed by two optional two-digit parts). I’m not even going to <em>try</em> to remember the Perl syntax to attempt this without “regexes”, the part of my brain which stored those particular memories having replaced them with syntactically similar but more practical knowledge like the Japanese kanji for “big flush” and “little flush”. In short, though, you’d scan through the text, looking for a run of at least two digits. Then detect and skip any dashes or white space characters. Then check for three more digits, and so on.</p>
+<p>Or we could write a regular expression: <code>\d{2}[- ]?\d{3}[- ]?\d{5}([- ]?\d{2}){0,2}</code>. That is, two digits, followed by an optional dash or space, then three digits, an optional dash or space, five digits, then anywhere from zero to two repetitions of an optional dash or space followed by two digits.</p>
+<p>Most programming languages and many other tools support regular expressions (or “regexes”) these days; if you don’t have a text editor that supports them, or you don’t know how to use them yet, you’re really missing out! There are plenty of resources on the Internet for learning about regular expressions, and it’s a very worthwhile use of your time.</p>
+<p>However, today I want to talk about the circumstances where regular expressions break down.</p>
+<h3 class="title">Seeing Like a State Machine</h3>
+<p>The fundamental problem with regular expressions is that they only recognize <a href="https://en.wikipedia.org/wiki/Regular_language"><em>regular languages</em></a>. This sounds, and is, tautological (the regular languages are often defined as exactly those defined by regular expressions), but it has huge implications. In short, regular expressions describe very simple “machines” called <em>finite automata</em>. These are state machines—flowcharts, if you’d like to visualize them that way. For example, here’s a flowchart illustrating the “beginning” (the first four digits) of our API-number regular expression: <img alt="Flowchart describing API number recognizer as a finite state machine" class="centered" src="/images/regex_fsm.png"></p>
+<p>Let’s think about human language for a moment. I can write a sentence, like this one, which embeds other sentences as parenthetical asides (certainly, that must include this one), quotes the utterances of others—as when Sally asked Joe, “Consider the following: ‘The horse raced past the barn fell’. Isn’t that an interesting example to parse?”—and generally meanders, digresses, and recurs. Many of these features are made possible by the fact that the grammar of English is <em>recursive</em>: a sentence can nest other sentences inside it, we can stack modifiers on modifiers, and so on.</p>
+<p>The same is true of many (most?) interesting formal languages—consider the grammar of a programming language like Python, where expressions can contain sub-expressions recursively, as when we construct a nested list (<code>[[1], [2], [3]]</code>) or an arithmetic expression (<code>1 + 2 * 3</code>). We can’t write regular expressions to match these languages! Our flowchart would loop back on itself, and we’d need some scratchpad on the side to keep track of how deeply nested we were.</p>
+<h3 class="title">An Irregular Language</h3>
+<p>Let’s consider a simple little language called OBAN: the Obviously Bogus Abject Notation. An OBAN document contains a single OBAN expression denoting a value; an OBAN expression may be:</p>
+<ul>
+<li>a natural number (i.e. a non-negative integer), like <code>0</code> or <code>132141418</code>,</li>
+<li>a string (i.e. a piece of text), enclosed in <em>les faux guillemets</em>, like <code>&lt;&lt;hello world&gt;&gt;</code>; <code>&gt;</code> appearing literally inside a string must be escaped with <code>^</code> as in <code>&lt;&lt;this string contains &lt;&lt;something string-like^&gt;^&gt;&gt;&gt;</code> and a single unescaped <code>&gt;</code> inside a string is an error,</li>
+<li>one of the three special <em>triboolean</em> values <code>True</code>, <code>False</code>, and <code>FileNotFound</code>,</li>
+<li>a <em>congregation</em> of OBAN expressions, like <code>(True, 12345, &lt;&lt;no se puede vivir sin amar&gt;&gt;)</code>,</li>
+<li>or a <em>callout</em> of named OBAN expressions, like:</li>
+</ul>
+<pre><code>{ &lt;&lt;first&gt;&gt; ! 23
+&amp; &lt;&lt;second&gt;&gt; ! (1, FileNotFound)
+&amp; &lt;&lt;third&gt;&gt; ! { &lt;&lt;nested1&gt;&gt; ! 1 &amp; &lt;&lt;nested2&gt;&gt; ! True }
+}</code></pre>
+<p>White space in OBAN is not significant except inside strings.</p>
+<p>As you can see, OBAN is a language with a <em>recursive</em> grammar—an OBAN expression can contain nested OBAN expressions to an arbitrary depth. The full OBAN grammar is presented below in <a href="https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_form">Extended Backus-Naur form</a>:</p>
+<pre class="ebnf"><code>digit = &quot;0&quot; | &quot;1&quot; | &quot;2&quot; | &quot;3&quot; | &quot;4&quot; | &quot;5&quot; | &quot;6&quot; | &quot;7&quot; | &quot;8&quot; | &quot;9&quot;;
+number = digit, { digit };
+any_character = ? any UTF-8 code point ?
+string = &quot;&lt;&lt;&quot;, { (any_character - &quot;&gt;&quot;) | &quot;^&gt;&quot; }, &quot;&gt;&gt;&quot;
+triboolean = &quot;True&quot; | &quot;False&quot; | &quot;FileNotFound&quot;;
+expression = number | string | triboolean | congregation | callout
+congregation = &quot;(&quot;, [ expression, { &quot;,&quot;, expression } ], &quot;)&quot;
+callout = &quot;{&quot;, [ string, &quot;!&quot;, expression, { &quot;&amp;&quot;, string, &quot;!&quot;, expression } ], &quot;}&quot;</code></pre>
+<p>We know regular expressions won’t work to match this grammar<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a>, so how can we proceed? In much the same way that regular expressions can be used to recognize regular languages, we can write recursive parsers for recursive languages. Each element of the grammar will be recognized by a function; just as the grammar recurs (as when an expression contains a callout which contains expressions), so our functions will recursively call each other. The recursive call stack will work as the “scratchpad” we need to track the depth of nesting during our parse.</p>
+<h3 class="title">Parser Combinators (mostly without the ‘M’ word)</h3>
+<p>My favorite way to write <em>recursive descent parsers</em>, like the one we need to parse OBAN, is to build them out of <em>parser combinators</em>. It’s an approach from the functional programming world. We model parsers as functions (from an input string, to a parse result); combinators (functions which operate on other functions) are then used to assemble more complex parsers out of simpler parsers.</p>
+<p>In the interest of reaching a wider audience—and in honor of the <code>#python</code> IRC channel where I probably spend more time than anywhere else trying to convince people not to try using regular expressions to parse non-regular languages—we’re going to build our own parser combinators out of sticks and mud, in Python. We’ll even try to make them as well-typed as we can, under the circumstances, using <a href="http://mypy-lang.org/"><code>mypy</code></a>.</p>
+<h3 class="title">I think that I shall never see A syntax lovely as a tree</h3>
+<p>Before we start writing parsers, however, we’ll need to decide exactly what sort of structure we want to parse OBAN into. Let’s say we have an OBAN document like:</p>
+<pre><code>{ &lt;&lt;first&gt;&gt; ! (1, FileNotFound)
+&amp; &lt;&lt;second&gt;&gt; ! &lt;&lt;some &lt;&lt;text^&gt;^&gt;&gt;&gt;
+&amp; &lt;&lt;third&gt;&gt; ! { &lt;&lt;nested&gt;&gt; ! True }
+}</code></pre>
+<p>We’d like to turn that into something like the following Python structure:</p>
+<pre class="sourceCode python" id="cb4"><code class="sourceCode python"><a class="sourceLine" id="cb4-1" data-line-number="1">{ <span class="st">&#39;first&#39;</span>: [<span class="dv">1</span>, FileNotFound]</a>
+<a class="sourceLine" id="cb4-2" data-line-number="2">, <span class="st">&#39;second&#39;</span>: <span class="st">&#39;some &lt;&lt;text&gt;&gt;&#39;</span></a>
+<a class="sourceLine" id="cb4-3" data-line-number="3">, <span class="st">&#39;third&#39;</span>: { <span class="st">&#39;nested&#39;</span>: <span class="va">True</span> }</a>
+<a class="sourceLine" id="cb4-4" data-line-number="4">}</a></code></pre>
+<p>(Yes, OBAN was designed to map fairly directly onto Python’s built-in data types. If it were more exotic, we would likely want to parse it into a more explicit <a href="https://en.wikipedia.org/wiki/Abstract_syntax_tree">abstract syntax tree</a>.)</p>
+<p>After the customary “throat clearing” of imports, we can write a Python <code>Enum</code> for representing tribools:</p>
+<pre class="sourceCode python" id="cb5"><code class="sourceCode python"><a class="sourceLine" id="cb5-1" data-line-number="1"><span class="im">import</span> sys</a>
+<a class="sourceLine" id="cb5-2" data-line-number="2"><span class="im">from</span> enum <span class="im">import</span> Enum, auto</a>
+<a class="sourceLine" id="cb5-3" data-line-number="3"><span class="im">from</span> typing <span class="im">import</span> Any, Callable, Dict, List, NamedTuple, Tuple, TypeVar, Union</a>
+<a class="sourceLine" id="cb5-4" data-line-number="4"></a>
+<a class="sourceLine" id="cb5-5" data-line-number="5"><span class="kw">class</span> TriBool(Enum):</a>
+<a class="sourceLine" id="cb5-6" data-line-number="6">    FALSE <span class="op">=</span> auto()</a>
+<a class="sourceLine" id="cb5-7" data-line-number="7">    TRUE <span class="op">=</span> auto()</a>
+<a class="sourceLine" id="cb5-8" data-line-number="8">    FILENOTFOUND <span class="op">=</span> auto()</a></code></pre>
+<p>It should now be straightforward to write a “type alias” for OBAN expressions: <code>Expression = Union[int, str, TriBool, List[Expression], Dict[str, Expression]]</code>. However, Python’s—or rather <code>mypy</code>’s—type system causes a complication here. <code>mypy</code> “type aliases” are just ordinary Python values, and Python is a strict (that is, evaluation is “eager”—values are evaluated as the point of definition, not on-demand when they are used) language. While Python functions can be recursive, it’s much more challenging to create a recursive value in Python<a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a>. We’ll overcome this minor difficulty by taking advantage of the fact that <code>mypy</code> allows type annotations in class definitions to be self-referential, wrapping each “nesting” of expressions in another class instance:</p>
+<pre class="sourceCode python" id="cb7"><code class="sourceCode python"><a class="sourceLine" id="cb7-1" data-line-number="1"><span class="kw">class</span> Expression:</a>
+<a class="sourceLine" id="cb7-2" data-line-number="2">    <span class="co"># type alias for what we can wrap into an expression</span></a>
+<a class="sourceLine" id="cb7-3" data-line-number="3">    Wrappable <span class="op">=</span> Union[</a>
+<a class="sourceLine" id="cb7-4" data-line-number="4">        <span class="bu">int</span>,</a>
+<a class="sourceLine" id="cb7-5" data-line-number="5">        <span class="bu">str</span>,</a>
+<a class="sourceLine" id="cb7-6" data-line-number="6">        TriBool,</a>
+<a class="sourceLine" id="cb7-7" data-line-number="7">        List[<span class="st">&#39;Expression&#39;</span>],</a>
+<a class="sourceLine" id="cb7-8" data-line-number="8">        Dict[<span class="bu">str</span>, <span class="st">&#39;Expression&#39;</span>]</a>
+<a class="sourceLine" id="cb7-9" data-line-number="9">    ]</a>
+<a class="sourceLine" id="cb7-10" data-line-number="10"></a>
+<a class="sourceLine" id="cb7-11" data-line-number="11">    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, value: Wrappable):</a>
+<a class="sourceLine" id="cb7-12" data-line-number="12">        <span class="va">self</span>.value <span class="op">=</span> value</a>
+<a class="sourceLine" id="cb7-13" data-line-number="13"></a>
+<a class="sourceLine" id="cb7-14" data-line-number="14">    <span class="kw">def</span> <span class="fu">__repr__</span>(<span class="va">self</span>):</a>
+<a class="sourceLine" id="cb7-15" data-line-number="15">        <span class="cf">return</span> <span class="ss">f&#39;Expression(</span><span class="sc">{</span><span class="bu">repr</span>(<span class="va">self</span>.value)<span class="sc">}</span><span class="ss">)&#39;</span></a></code></pre>
+<p>We now have what we need to represent OBAN expressions in Python; our previous example would be:</p>
+<pre class="sourceCode python" id="cb8"><code class="sourceCode python"><a class="sourceLine" id="cb8-1" data-line-number="1">example: Expression</a>
+<a class="sourceLine" id="cb8-2" data-line-number="2">example <span class="op">=</span> Expression({</a>
+<a class="sourceLine" id="cb8-3" data-line-number="3">    <span class="st">&#39;first&#39;</span>: Expression([Expression(<span class="dv">1</span>), Expression(TriBool.FILENOTFOUND)]),</a>
+<a class="sourceLine" id="cb8-4" data-line-number="4">    <span class="st">&#39;second&#39;</span>: Expression(<span class="st">&#39;some &lt;&lt;text&gt;&gt;&#39;</span>),</a>
+<a class="sourceLine" id="cb8-5" data-line-number="5">    <span class="st">&#39;third&#39;</span>: Expression({ <span class="st">&#39;nested&#39;</span>: Expression(TriBool.TRUE) })</a>
+<a class="sourceLine" id="cb8-6" data-line-number="6">})</a></code></pre>
+<h3 class="title">Parse Me, Maybe</h3>
+<p>Now that we have a set of data types for our parser to construct, we can return to the idea of parser combinators. For this “first pass”, we’ll use a very simple approach; later, we’ll see the limitations it creates for error reporting and performance, and talk about how to overcome them.</p>
+<p>The central idea is this: a parser is just a function which takes an input string, and returns either a “failure indicator” (we’ll use <code>None</code>) or, in the successful case, the parsed value and the remaining input after consuming the parsed value. In Python with <code>mypy</code>, that looks like:</p>
+<pre class="sourceCode python" id="cb9"><code class="sourceCode python"><a class="sourceLine" id="cb9-1" data-line-number="1">_T <span class="op">=</span> TypeVar(<span class="st">&#39;_T&#39;</span>)</a>
+<a class="sourceLine" id="cb9-2" data-line-number="2">ParseResult <span class="op">=</span> Union[Tuple[_T, <span class="bu">str</span>], <span class="va">None</span>]</a>
+<a class="sourceLine" id="cb9-3" data-line-number="3">Parser <span class="op">=</span> Callable[[<span class="bu">str</span>], ParseResult[_T]]</a></code></pre>
+<p>The type <code>Union[T, None]</code> can also be written as <code>Optional[T]</code>—it’s <code>mypy</code>’s version of the ubiquitous “option”, “maybe”, or “nullable” type. In <code>mypy</code>, <code>Union</code> is used to create <em>sum types</em>: types whose values may come from of any of their component types. Unlike most statically-typed languages, we don’t need special data constructors or tags to “lift” component-type values into <code>Union</code> types; Python values are already type-tagged so <code>mypy</code> uses a subtyping relationship to model sum types—<code>T</code> is a sub-type of <code>Union[T, U]</code> and so we can assign a <code>T</code> directly to a variable of type <code>Union[T, U]</code>. The <code>Union[T, None]</code> type is used to model a value which is <em>either</em> a <code>T</code> or missing (<code>None</code>). We’ll use this simplest possible “fallible” return type for now; notice that it provides no additional information about the nature of the error in the failure case.</p>
+<p>In a language which supported monadic types in general (like Haskell), or at least provided a monadic syntax for optional types (like Rust or C#), we’d get much of the code we’re about to write “for free”. Without venturing into the infamous “monad tutorial” quagmire, the idea behind monadic types is that we have a notion of how to chain operations on these “lifted” types together. For example, we might write a “safe division” operator in Rust as:</p>
+<pre class="sourceCode rust" id="cb10"><code class="sourceCode rust"><a class="sourceLine" id="cb10-1" data-line-number="1"><span class="kw">fn</span> safe_div(x: <span class="dt">f64</span>, y: <span class="dt">f64</span>) -&gt; <span class="dt">Option</span>&lt;<span class="dt">f64</span>&gt; <span class="op">{</span></a>
+<a class="sourceLine" id="cb10-2" data-line-number="2">    <span class="kw">if</span> y == <span class="dv">0.0</span> <span class="op">{</span></a>
+<a class="sourceLine" id="cb10-3" data-line-number="3">        <span class="cn">None</span></a>
+<a class="sourceLine" id="cb10-4" data-line-number="4">    <span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></a>
+<a class="sourceLine" id="cb10-5" data-line-number="5">        <span class="cn">Some</span>(x / y)</a>
+<a class="sourceLine" id="cb10-6" data-line-number="6">    <span class="op">}</span></a>
+<a class="sourceLine" id="cb10-7" data-line-number="7"><span class="op">}</span></a></code></pre>
+<p>Having that, we can then easily write a function like “divide <code>x</code> by <code>y</code> and <code>y</code> by <code>x</code>, returning both results or failing if either <code>x</code> or <code>y</code> is zero”:</p>
+<pre class="sourceCode rust" id="cb11"><code class="sourceCode rust"><a class="sourceLine" id="cb11-1" data-line-number="1"><span class="kw">fn</span> safe_div_both_ways(x: <span class="dt">f64</span>, y: <span class="dt">f64</span>) -&gt; <span class="dt">Option</span>&lt;(<span class="dt">f64</span>, <span class="dt">f64</span>)&gt; <span class="op">{</span></a>
+<a class="sourceLine" id="cb11-2" data-line-number="2">    safe_div(x, y)</a>
+<a class="sourceLine" id="cb11-3" data-line-number="3">      .and_then(|x_div_y| safe_div(y, x).map(|y_div_x| (x_div_y, y_div_x)))</a>
+<a class="sourceLine" id="cb11-4" data-line-number="4"><span class="op">}</span></a></code></pre>
+<p>We’re going to need to write our own equivalents of <code>map</code> and <code>and_then</code> (which in functional programming parlance would be called <code>map</code> for functors and <code>bind</code> for monads).</p>
+<p>First, though, let’s define another handy type alias—the type of parsers which can’t fail.</p>
+<pre class="sourceCode python" id="cb12"><code class="sourceCode python"><a class="sourceLine" id="cb12-1" data-line-number="1">InfallibleParser <span class="op">=</span> Callable[[<span class="bu">str</span>], Tuple[_T, <span class="bu">str</span>]]</a></code></pre>
+<p>Let’s write two of the most fundamental parsers.</p>
+<pre class="sourceCode python" id="cb13"><code class="sourceCode python"><a class="sourceLine" id="cb13-1" data-line-number="1"><span class="co"># the simplest parser: &#39;match exactly this string&#39;</span></a>
+<a class="sourceLine" id="cb13-2" data-line-number="2"><span class="kw">def</span> exactly(match: <span class="bu">str</span>) <span class="op">-&gt;</span> Parser[<span class="bu">str</span>]:</a>
+<a class="sourceLine" id="cb13-3" data-line-number="3">    <span class="kw">def</span> parser(<span class="bu">input</span>: <span class="bu">str</span>) <span class="op">-&gt;</span> ParseResult[<span class="bu">str</span>]:</a>
+<a class="sourceLine" id="cb13-4" data-line-number="4">        <span class="cf">if</span> <span class="bu">input</span>.startswith(match):</a>
+<a class="sourceLine" id="cb13-5" data-line-number="5">            <span class="cf">return</span> match, <span class="bu">input</span>[<span class="bu">len</span>(match):]</a>
+<a class="sourceLine" id="cb13-6" data-line-number="6">        <span class="cf">return</span> <span class="va">None</span></a>
+<a class="sourceLine" id="cb13-7" data-line-number="7">    <span class="cf">return</span> parser</a>
+<a class="sourceLine" id="cb13-8" data-line-number="8"></a>
+<a class="sourceLine" id="cb13-9" data-line-number="9"><span class="co"># another basic one: succeeds at end of input; fails otherwise</span></a>
+<a class="sourceLine" id="cb13-10" data-line-number="10"><span class="co"># eof: Parser[None]</span></a>
+<a class="sourceLine" id="cb13-11" data-line-number="11">eof: Parser[<span class="va">None</span>]</a>
+<a class="sourceLine" id="cb13-12" data-line-number="12">eof <span class="op">=</span> <span class="kw">lambda</span> <span class="bu">input</span>: (<span class="va">None</span>, <span class="bu">input</span>) <span class="cf">if</span> <span class="bu">len</span>(<span class="bu">input</span>) <span class="op">==</span> <span class="dv">0</span> <span class="cf">else</span> <span class="va">None</span></a>
+<a class="sourceLine" id="cb13-13" data-line-number="13"></a>
+<a class="sourceLine" id="cb13-14" data-line-number="14"><span class="co"># a parser which consumes a single character, if available</span></a>
+<a class="sourceLine" id="cb13-15" data-line-number="15">char: Parser[<span class="bu">str</span>]</a>
+<a class="sourceLine" id="cb13-16" data-line-number="16">char <span class="op">=</span> <span class="kw">lambda</span> <span class="bu">input</span>: (<span class="bu">input</span>[<span class="dv">0</span>], <span class="bu">input</span>[<span class="dv">1</span>:]) <span class="cf">if</span> <span class="bu">len</span>(<span class="bu">input</span>) <span class="op">&gt;</span> <span class="dv">0</span> <span class="cf">else</span> <span class="va">None</span></a></code></pre>
+<p><code>exactly</code> is a nice case study in the use of higher-order functions to make parser construction simple. <code>exactly</code> is not a parser itself, but rather a function which takes a string to match, and returns a parser (in the form of a <a href="https://en.wikipedia.org/wiki/Closure_(computer_programming)">function closing over the argument</a>). It’s the inner closure rather than the outer function which is typed to match our definition of <code>Parser</code>, taking an input string and returning a <code>ParseResult</code> (which is just a type alias for our “optional” type). This closure checks whether the input string matches the desired string; if so, it “peels off” the input and returns it along with the remaining input. Let’s see how this works with a simple example. To “run” a parser, we just call it with the input as an argument; we’ll see how to chain parsers together in a bit.</p>
+<pre><code>&gt;&gt;&gt; exactly(&#39;sic&#39;)(&#39;sic transit gloria mundi&#39;)
+(&#39;sic&#39;, &#39; transit gloria mundi&#39;)
+&gt;&gt;&gt; exactly(&#39;this&#39;)(&#39;that&#39;)
+&gt;&gt;&gt;</code></pre>
+<p>When the parser matches, we see the matched string and the remaining input; when it doesn’t, we see <code>None</code><a href="#fn3" class="footnote-ref" id="fnref3"><sup>3</sup></a>.</p>
+<p>The <code>eof</code> (“end of file”) parser is even simpler: it matches when there is no remaining input. Unlike <code>exactly</code>, it’s a parser rather than a function for creating parsers. Notice that the parser uses <code>None</code> in two different ways: both as part of the successful return value (tupled with the remaining input—in this case, guaranteed to be <code>''</code>), and as the failure-case return value.</p>
+<p><code>char</code> is similar, but matches any single character; it only fails if the input is exhausted.</p>
+<p>Here’s a slightly more interesting parser-builder, and a useful parser constructed from it.</p>
+<pre class="sourceCode python" id="cb15"><code class="sourceCode python"><a class="sourceLine" id="cb15-1" data-line-number="1"><span class="co"># an &#39;infallible&#39; parser which consumes characters matching a predicate</span></a>
+<a class="sourceLine" id="cb15-2" data-line-number="2"><span class="kw">def</span> chars_while(p: Callable[[<span class="bu">str</span>], <span class="bu">bool</span>]) <span class="op">-&gt;</span> InfallibleParser[<span class="bu">str</span>]:</a>
+<a class="sourceLine" id="cb15-3" data-line-number="3">    <span class="kw">def</span> parser(<span class="bu">input</span>: <span class="bu">str</span>) <span class="op">-&gt;</span> Tuple[<span class="bu">str</span>, <span class="bu">str</span>]:</a>
+<a class="sourceLine" id="cb15-4" data-line-number="4">        split_at <span class="op">=</span> <span class="dv">0</span></a>
+<a class="sourceLine" id="cb15-5" data-line-number="5">        <span class="cf">while</span> split_at <span class="op">&lt;</span> <span class="bu">len</span>(<span class="bu">input</span>) <span class="kw">and</span> p(<span class="bu">input</span>[split_at]):</a>
+<a class="sourceLine" id="cb15-6" data-line-number="6">            split_at <span class="op">+=</span> <span class="dv">1</span></a>
+<a class="sourceLine" id="cb15-7" data-line-number="7">        <span class="cf">return</span> <span class="bu">input</span>[:split_at], <span class="bu">input</span>[split_at:]</a>
+<a class="sourceLine" id="cb15-8" data-line-number="8">    <span class="cf">return</span> parser</a>
+<a class="sourceLine" id="cb15-9" data-line-number="9"></a>
+<a class="sourceLine" id="cb15-10" data-line-number="10"><span class="co"># use it to build a &quot;consume white space&quot; parser</span></a>
+<a class="sourceLine" id="cb15-11" data-line-number="11">whitespace: Parser[<span class="bu">str</span>]</a>
+<a class="sourceLine" id="cb15-12" data-line-number="12">whitespace <span class="op">=</span> chars_while(<span class="bu">str</span>.isspace)</a></code></pre>
+<p><code>chars_while</code> accepts zero or more characters for which a specified predicate function returns <code>True</code>; we use it with <code>str.isspace</code> to build a parser which strips leading white space from the input. This will come in handy later, because OBAN is a whitespace-insensitive language.</p>
+<p>Now it’s time to write some proper parser combinators. We’ll start with the capabilities of what the typed functional programming world would call a “pointed functor”: mapping a function over the parsed result (of which replacing it with a constant is a special case), and “lifting” a value into an (infallible) parser which always returns the value.</p>
+<pre class="sourceCode python" id="cb16"><code class="sourceCode python"><a class="sourceLine" id="cb16-1" data-line-number="1"><span class="co"># some basic combinators for parsers</span></a>
+<a class="sourceLine" id="cb16-2" data-line-number="2">_U <span class="op">=</span> TypeVar(<span class="st">&#39;_U&#39;</span>)</a>
+<a class="sourceLine" id="cb16-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb16-4" data-line-number="4"><span class="co"># map a function over a parser&#39;s result, if it succeeds</span></a>
+<a class="sourceLine" id="cb16-5" data-line-number="5"><span class="kw">def</span> pmap(f: Callable[[_T], _U], p: Parser[_T]) <span class="op">-&gt;</span> Parser[_U]:</a>
+<a class="sourceLine" id="cb16-6" data-line-number="6">    <span class="kw">def</span> parser(<span class="bu">input</span>: <span class="bu">str</span>) <span class="op">-&gt;</span> ParseResult[_U]:</a>
+<a class="sourceLine" id="cb16-7" data-line-number="7">        res <span class="op">=</span> p(<span class="bu">input</span>)</a>
+<a class="sourceLine" id="cb16-8" data-line-number="8">        <span class="cf">if</span> res <span class="kw">is</span> <span class="va">None</span>:</a>
+<a class="sourceLine" id="cb16-9" data-line-number="9">            <span class="cf">return</span> <span class="va">None</span></a>
+<a class="sourceLine" id="cb16-10" data-line-number="10">        x, rest <span class="op">=</span> res</a>
+<a class="sourceLine" id="cb16-11" data-line-number="11">        <span class="cf">return</span> f(x), rest</a>
+<a class="sourceLine" id="cb16-12" data-line-number="12">    <span class="cf">return</span> parser</a>
+<a class="sourceLine" id="cb16-13" data-line-number="13"></a>
+<a class="sourceLine" id="cb16-14" data-line-number="14"><span class="co"># a parser which always succeeds by producing a constant</span></a>
+<a class="sourceLine" id="cb16-15" data-line-number="15"><span class="kw">def</span> pure(x: _T) <span class="op">-&gt;</span> InfallibleParser[_T]:</a>
+<a class="sourceLine" id="cb16-16" data-line-number="16">    <span class="cf">return</span> <span class="kw">lambda</span> <span class="bu">input</span>: (x, <span class="bu">input</span>)</a>
+<a class="sourceLine" id="cb16-17" data-line-number="17"></a>
+<a class="sourceLine" id="cb16-18" data-line-number="18"><span class="co"># the opposite - a parser which always fails</span></a>
+<a class="sourceLine" id="cb16-19" data-line-number="19"><span class="co"># it&#39;s really a Parser[_T] for all _T, but we&#39;ll use Any since mypy</span></a>
+<a class="sourceLine" id="cb16-20" data-line-number="20"><span class="co">#   isn&#39;t that sharp</span></a>
+<a class="sourceLine" id="cb16-21" data-line-number="21">fail: Parser[Any]</a>
+<a class="sourceLine" id="cb16-22" data-line-number="22">fail <span class="op">=</span> <span class="kw">lambda</span> _: <span class="va">None</span></a>
+<a class="sourceLine" id="cb16-23" data-line-number="23"></a>
+<a class="sourceLine" id="cb16-24" data-line-number="24"><span class="co"># replace a successful result by a constant</span></a>
+<a class="sourceLine" id="cb16-25" data-line-number="25"><span class="kw">def</span> cmap(x: _T, p: Parser[_U]) <span class="op">-&gt;</span> Parser[_T]:</a>
+<a class="sourceLine" id="cb16-26" data-line-number="26">    <span class="cf">return</span> pmap(<span class="kw">lambda</span> _: x, p)</a></code></pre>
+<p>Let’s see how <code>pmap</code> (“parser map”—we don’t want to shadow the global <code>map</code> built-in function) works with a simple example:</p>
+<pre><code>&gt;&gt;&gt; pmap(lambda s: s + &#39; semper tyrannis&#39;, exactly(&#39;sic&#39;))(&#39;sic transit gloria mundi&#39;)
+(&#39;sic semper tyrannis&#39;, &#39; transit gloria mundi&#39;)</code></pre>
+<p><code>pure</code> is even more straightforward:</p>
+<pre><code>&gt;&gt;&gt; pure(23.5)(&#39;anything at all&#39;)
+(23.5, &#39;anything at all&#39;)</code></pre>
+<p><code>cmap</code> splits the difference, succeeding with a constant value only when the underlying parser matches:</p>
+<pre><code>&gt;&gt;&gt; cmap(True, exactly(&#39;YES&#39;))(&#39;YES we have no bananas&#39;)
+(True, &#39; we have no bananas&#39;)</code></pre>
+<p>With <code>fail</code>, we’ve already seen a gap in the <code>mypy</code> type system. In Haskell, we’d type <code>fail</code> as (adding an explicit quantifier for clarity)</p>
+<pre class="sourceCode haskell" id="cb20"><code class="sourceCode haskell"><a class="sourceLine" id="cb20-1" data-line-number="1">fail<span class="ot"> ::</span> forall a <span class="fu">.</span> <span class="dt">Parser</span> a</a></code></pre>
+<p><code>mypy</code> doesn’t let us write polymorphic values like this; in other words, we can’t really bring the <code>_T</code> type variable into scope in a variable definition, only in a function definition. We could expand out the definition of <code>Parser</code> and properly <code>def</code> a function for <code>fail</code>—but what a waste of time and lines that would be. In any case, we’re about to go where <code>mypy</code> can’t follow, so the types will be getting much looser from here on out.</p>
+<h3 class="title">Don’t Ever Break The <code>chain</code></h3>
+<p>We’re about to start writing our first <em>applicative</em> parser combinators: combinators which combine the results of two or more parsers (remember, <code>pmap</code> just “injected” a function into a single parser). First, we’ll write two crucial combinators, which let us build parsers for both sum (that is, either/or, like <code>Union</code>) and product (that is, both/and, like <code>Tuple</code>) types, by combining parsers for their component types.</p>
+<pre class="sourceCode python" id="cb21"><code class="sourceCode python"><a class="sourceLine" id="cb21-1" data-line-number="1"><span class="co"># chain multiple parsers together and produce a tuple of their results,</span></a>
+<a class="sourceLine" id="cb21-2" data-line-number="2"><span class="co">#   if all succeed</span></a>
+<a class="sourceLine" id="cb21-3" data-line-number="3"><span class="kw">def</span> chain(<span class="op">*</span>parsers: Parser[Any]) <span class="op">-&gt;</span> Parser[Tuple[Any, ...]]:</a>
+<a class="sourceLine" id="cb21-4" data-line-number="4">    <span class="kw">def</span> parser(<span class="bu">input</span>: <span class="bu">str</span>) <span class="op">-&gt;</span> ParseResult[Tuple[Any, ...]]:</a>
+<a class="sourceLine" id="cb21-5" data-line-number="5">        results <span class="op">=</span> <span class="bu">list</span>()</a>
+<a class="sourceLine" id="cb21-6" data-line-number="6">        <span class="cf">for</span> p <span class="kw">in</span> parsers:</a>
+<a class="sourceLine" id="cb21-7" data-line-number="7">            res <span class="op">=</span> p(<span class="bu">input</span>)</a>
+<a class="sourceLine" id="cb21-8" data-line-number="8">            <span class="cf">if</span> res <span class="kw">is</span> <span class="va">None</span>:</a>
+<a class="sourceLine" id="cb21-9" data-line-number="9">                <span class="cf">return</span> <span class="va">None</span></a>
+<a class="sourceLine" id="cb21-10" data-line-number="10">            val, <span class="bu">input</span> <span class="op">=</span> res</a>
+<a class="sourceLine" id="cb21-11" data-line-number="11">            results.append(val)</a>
+<a class="sourceLine" id="cb21-12" data-line-number="12">        <span class="cf">return</span> <span class="bu">tuple</span>(results), <span class="bu">input</span></a>
+<a class="sourceLine" id="cb21-13" data-line-number="13">    <span class="cf">return</span> parser</a>
+<a class="sourceLine" id="cb21-14" data-line-number="14"></a>
+<a class="sourceLine" id="cb21-15" data-line-number="15"><span class="co"># run multiple parsers, recovering from errors, until one succeeds;</span></a>
+<a class="sourceLine" id="cb21-16" data-line-number="16"><span class="co">#   fail if all parsers fail</span></a>
+<a class="sourceLine" id="cb21-17" data-line-number="17"><span class="kw">def</span> alt(<span class="op">*</span>parsers: Parser[Any]) <span class="op">-&gt;</span> Parser[Any]:</a>
+<a class="sourceLine" id="cb21-18" data-line-number="18">    <span class="kw">def</span> parser(<span class="bu">input</span>: <span class="bu">str</span>) <span class="op">-&gt;</span> ParseResult[Any]:</a>
+<a class="sourceLine" id="cb21-19" data-line-number="19">        <span class="cf">for</span> p <span class="kw">in</span> parsers:</a>
+<a class="sourceLine" id="cb21-20" data-line-number="20">            res <span class="op">=</span> p(<span class="bu">input</span>)</a>
+<a class="sourceLine" id="cb21-21" data-line-number="21">            <span class="cf">if</span> res <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</a>
+<a class="sourceLine" id="cb21-22" data-line-number="22">                <span class="cf">return</span> res</a>
+<a class="sourceLine" id="cb21-23" data-line-number="23">        <span class="cf">return</span> <span class="va">None</span></a>
+<a class="sourceLine" id="cb21-24" data-line-number="24">    <span class="cf">return</span> parser</a></code></pre>
+<p>These are quite a bit more complex than the parsers and combinators we’ve written before, but the logic is straightforward enough. <code>chain</code> applies multiple parsers, one after another, collecting their results into a tuple or failing if and when the first failure occurs in a component parser. Let’s see an example:</p>
+<pre><code>&gt;&gt;&gt; chain(exactly(&#39;this&#39;), exactly(&#39;that&#39;))(&#39;thisthat&#39;)
+((&#39;this&#39;, &#39;that&#39;), &#39;&#39;)
+&gt;&gt;&gt; chain(exactly(&#39;this&#39;), exactly(&#39;that&#39;))(&#39;thisthis&#39;)
+&gt;&gt;&gt;</code></pre>
+<p>The “real” type of <code>chain</code> isn’t possible to express in Python annotations; it should be something like “for all types <code>T1 ... TN</code>, takes <code>Parser[T1] ... Parser[TN]</code> and returns <code>Parser[Tuple[T1 ... TN]]</code>”.</p>
+<p><code>alt</code> applies multiple parsers until any parser succeeds; it returns the first successful result encountered, or fails if every component parser fails. We can use <code>alt</code> to parse value of sum types (<code>Union</code>s) by combining parsers for their variant types. For example:</p>
+<pre><code>&gt;&gt;&gt; alt(exactly(&#39;this&#39;), exactly(&#39;that&#39;))(&#39;thisthat&#39;)
+(&#39;this&#39;, &#39;that&#39;)
+&gt;&gt;&gt; alt(exactly(&#39;this&#39;), exactly(&#39;that&#39;))(&#39;thatthis&#39;)
+(&#39;that&#39;, &#39;this&#39;)
+&gt;&gt;&gt; alt(exactly(&#39;this&#39;), exactly(&#39;that&#39;))(&#39;theother&#39;)
+&gt;&gt;&gt;</code></pre>
+<p>Again, <code>alt</code>’s true type is ineffable as far as Python and <code>mypy</code> are concerned; it’s “for all types <code>T1 ... TN</code>, takes <code>Parser[T1] ... Parser[TN]</code> and returns <code>Parser[Union[T1 ... TN]]</code>”.</p>
+<p>The next combinator could be written (inefficiently and recursively) with <code>chain</code> and <code>alt</code>, but it’s convenient to provide a more direct implementation.</p>
+<pre class="sourceCode python" id="cb24"><code class="sourceCode python"><a class="sourceLine" id="cb24-1" data-line-number="1"><span class="co"># capture zero or more repetitions of a parser</span></a>
+<a class="sourceLine" id="cb24-2" data-line-number="2"><span class="kw">def</span> many(p: Parser[_T]) <span class="op">-&gt;</span> InfallibleParser[List[_T]]:</a>
+<a class="sourceLine" id="cb24-3" data-line-number="3">    <span class="kw">def</span> parser(<span class="bu">input</span>: <span class="bu">str</span>) <span class="op">-&gt;</span> Tuple[List[_T], <span class="bu">str</span>]:</a>
+<a class="sourceLine" id="cb24-4" data-line-number="4">        results: List[_T] <span class="op">=</span> <span class="bu">list</span>()</a>
+<a class="sourceLine" id="cb24-5" data-line-number="5">        <span class="cf">while</span> <span class="va">True</span>:</a>
+<a class="sourceLine" id="cb24-6" data-line-number="6">            res <span class="op">=</span> p(<span class="bu">input</span>)</a>
+<a class="sourceLine" id="cb24-7" data-line-number="7">            <span class="cf">if</span> res <span class="kw">is</span> <span class="va">None</span>:</a>
+<a class="sourceLine" id="cb24-8" data-line-number="8">                <span class="cf">return</span> results, <span class="bu">input</span></a>
+<a class="sourceLine" id="cb24-9" data-line-number="9">            val, <span class="bu">input</span> <span class="op">=</span> res</a>
+<a class="sourceLine" id="cb24-10" data-line-number="10">            results.append(val)</a>
+<a class="sourceLine" id="cb24-11" data-line-number="11">    <span class="cf">return</span> parser</a></code></pre>
+<p><code>many</code> repeatedly applies a parser, collecting as many matches as it finds (zero or more) into a list. Since the number of matches accepted by <code>many</code> may be zero, it is an “infallible” parser. An example:</p>
+<pre><code>&gt;&gt;&gt; many(exactly(&#39;a&#39;))(&#39;aaaa&#39;)
+([&#39;a&#39;, &#39;a&#39;, &#39;a&#39;, &#39;a&#39;], &#39;&#39;)
+&gt;&gt;&gt; many(exactly(&#39;a&#39;))(&#39;bbbb&#39;)
+([], &#39;bbbb&#39;)</code></pre>
+<p>Finally, we can use <code>alt</code> to define a combinator which makes a parser “optional”; the result of the new parser is the result of the underlying parser if it matches, or <code>None</code> otherwise.</p>
+<pre class="sourceCode python" id="cb26"><code class="sourceCode python"><a class="sourceLine" id="cb26-1" data-line-number="1"><span class="kw">def</span> optional(p: Parser[_T]) <span class="op">-&gt;</span> Parser[Union[_T, <span class="va">None</span>]]:</a>
+<a class="sourceLine" id="cb26-2" data-line-number="2">    <span class="cf">return</span> alt(p, pure(<span class="va">None</span>))</a></code></pre>
+<h3 class="title">The Ties That <code>bind</code></h3>
+<p>To finish our set of combinators—and finally assemble our OBAN parser—we need a combinator which lets us select the next parser to run based on the result of a previous parser. This ability to compose parsers in a content-aware way is the key element of a <em>monad</em>. Again, we wont belabor the point; there are plenty of monad tutorials, and a deep understanding of the monad abstraction is not at all necessary to make use of the <code>bind</code> combinator we’re about to define.</p>
+<pre class="sourceCode python" id="cb27"><code class="sourceCode python"><a class="sourceLine" id="cb27-1" data-line-number="1"><span class="co"># a way to &quot;decide&quot; the next parser based on</span></a>
+<a class="sourceLine" id="cb27-2" data-line-number="2"><span class="co">#   the result of the previous - this is what makes Parser a monad</span></a>
+<a class="sourceLine" id="cb27-3" data-line-number="3"><span class="kw">def</span> bind(p: Parser[_T], f: Callable[[_T], Parser[_U]]) <span class="op">-&gt;</span> Parser[_U]:</a>
+<a class="sourceLine" id="cb27-4" data-line-number="4">    <span class="kw">def</span> parser(<span class="bu">input</span>: <span class="bu">str</span>) <span class="op">-&gt;</span> ParseResult[_U]:</a>
+<a class="sourceLine" id="cb27-5" data-line-number="5">        res <span class="op">=</span> p(<span class="bu">input</span>)</a>
+<a class="sourceLine" id="cb27-6" data-line-number="6">        <span class="cf">if</span> res <span class="kw">is</span> <span class="va">None</span>:</a>
+<a class="sourceLine" id="cb27-7" data-line-number="7">            <span class="cf">return</span> <span class="va">None</span></a>
+<a class="sourceLine" id="cb27-8" data-line-number="8">        x, <span class="bu">input</span> <span class="op">=</span> res</a>
+<a class="sourceLine" id="cb27-9" data-line-number="9">        <span class="cf">return</span> f(x)(<span class="bu">input</span>)</a>
+<a class="sourceLine" id="cb27-10" data-line-number="10">    <span class="cf">return</span> parser</a></code></pre>
+<p>The general type signature of the <code>bind</code> operation on some monad <code>m</code> is (in Haskell, since the syntax for function types is prettier than <code>Callable</code>):</p>
+<pre><code>bind :: m a -&gt; (a -&gt; m b) -&gt; m b</code></pre>
+<p>We take an “<code>m</code> of <code>a</code>” and a function which, given an <code>a</code>, “chooses” an “<code>m</code> of <code>b</code>” to run next; we return the chosen “<code>m</code> of <code>b</code>”.</p>
+<p>With <code>bind</code> in hand, we can now make decisions inside our parsers. This lets us write some new combinators which impose additional conditions on their parsers.</p>
+<pre class="sourceCode python" id="cb29"><code class="sourceCode python"><a class="sourceLine" id="cb29-1" data-line-number="1"><span class="co"># like chars_while, but requires there to be at least one matching char</span></a>
+<a class="sourceLine" id="cb29-2" data-line-number="2"><span class="kw">def</span> chars_while1(p: Callable[[<span class="bu">str</span>], <span class="bu">bool</span>]) <span class="op">-&gt;</span> Parser[<span class="bu">str</span>]:</a>
+<a class="sourceLine" id="cb29-3" data-line-number="3">    <span class="cf">return</span> bind(chars_while(p), <span class="kw">lambda</span> c: fail <span class="cf">if</span> <span class="bu">len</span>(c) <span class="op">==</span> <span class="dv">0</span> <span class="cf">else</span> pure(c))</a>
+<a class="sourceLine" id="cb29-4" data-line-number="4"></a>
+<a class="sourceLine" id="cb29-5" data-line-number="5"><span class="co"># use it to build a &quot;run of digits&quot; parser</span></a>
+<a class="sourceLine" id="cb29-6" data-line-number="6">digits: Parser[<span class="bu">str</span>]</a>
+<a class="sourceLine" id="cb29-7" data-line-number="7">digits <span class="op">=</span> chars_while1(<span class="bu">str</span>.isdigit)</a>
+<a class="sourceLine" id="cb29-8" data-line-number="8"></a>
+<a class="sourceLine" id="cb29-9" data-line-number="9"><span class="co"># use it to build an &quot;unsigned integer&quot; parser</span></a>
+<a class="sourceLine" id="cb29-10" data-line-number="10">integer: Parser[<span class="bu">int</span>]</a>
+<a class="sourceLine" id="cb29-11" data-line-number="11">integer <span class="op">=</span> pmap(<span class="bu">int</span>, digits)</a>
+<a class="sourceLine" id="cb29-12" data-line-number="12"></a>
+<a class="sourceLine" id="cb29-13" data-line-number="13"><span class="co"># capture one or more repetitions of a parser</span></a>
+<a class="sourceLine" id="cb29-14" data-line-number="14"><span class="kw">def</span> some(p: Parser[_T]) <span class="op">-&gt;</span> Parser[List[_T]]:</a>
+<a class="sourceLine" id="cb29-15" data-line-number="15">    <span class="cf">return</span> bind(many(p), <span class="kw">lambda</span> r: fail <span class="cf">if</span> <span class="bu">len</span>(r) <span class="op">==</span> <span class="dv">0</span> <span class="cf">else</span> pure(r))</a></code></pre>
+<p><code>chars_while1</code> is to <code>chars_while</code> as <code>some</code> is to <code>many</code>; both take the underlying parser and enforce the requirement that they produce at least one value (both <code>chars_while</code> and <code>many</code> are infallible and can match zero-length sequences). Using <code>chars_while1</code> and <code>pmap</code>, we can build a parser for unsigned integers:</p>
+<pre><code>&gt;&gt;&gt; integer(&#39;12345&#39;)
+(12345, &#39;&#39;)
+&gt;&gt;&gt; integer(&#39;abcdef&#39;)
+&gt;&gt;&gt;</code></pre>
+<p>We’ll write a last few generic combinators with more complex behavior, which we’ll need to parse OBAN. To pick out specific pieces from the tuples returned by <code>chain</code>, we’ll need some “tuple-extractor” functions to use as arguments to <code>pmap</code>. In principle, <code>lambda</code> functions would be cleaner here, but <code>mypy</code> doesn’t seem to be able to type them correctly in this context.</p>
+<pre class="sourceCode python" id="cb31"><code class="sourceCode python"><a class="sourceLine" id="cb31-1" data-line-number="1"><span class="co"># mypy hates type-checking lambdas as arguments to pmap, so we&#39;ll need some</span></a>
+<a class="sourceLine" id="cb31-2" data-line-number="2"><span class="co">#   tuple-extractor functions</span></a>
+<a class="sourceLine" id="cb31-3" data-line-number="3"><span class="kw">def</span> first(t: Tuple[Any, ...]) <span class="op">-&gt;</span> Any:</a>
+<a class="sourceLine" id="cb31-4" data-line-number="4">    <span class="cf">return</span> t[<span class="dv">0</span>]</a>
+<a class="sourceLine" id="cb31-5" data-line-number="5"></a>
+<a class="sourceLine" id="cb31-6" data-line-number="6"><span class="kw">def</span> second(t: Tuple[Any, ...]) <span class="op">-&gt;</span> Any:</a>
+<a class="sourceLine" id="cb31-7" data-line-number="7">    <span class="cf">return</span> t[<span class="dv">1</span>]</a>
+<a class="sourceLine" id="cb31-8" data-line-number="8"></a>
+<a class="sourceLine" id="cb31-9" data-line-number="9"><span class="co"># &quot;only&quot; p - match what p matches, then insist on end-of-input</span></a>
+<a class="sourceLine" id="cb31-10" data-line-number="10"><span class="kw">def</span> only(p: Parser[_T]) <span class="op">-&gt;</span> Parser[_T]:</a>
+<a class="sourceLine" id="cb31-11" data-line-number="11">    <span class="cf">return</span> pmap(first, chain(p, eof))</a>
+<a class="sourceLine" id="cb31-12" data-line-number="12"></a>
+<a class="sourceLine" id="cb31-13" data-line-number="13"><span class="co"># match p, followed by optional white space</span></a>
+<a class="sourceLine" id="cb31-14" data-line-number="14"><span class="kw">def</span> lexeme(p: Parser[_T]) <span class="op">-&gt;</span> Parser[_T]:</a>
+<a class="sourceLine" id="cb31-15" data-line-number="15">    <span class="cf">return</span> pmap(first, chain(p, white space))</a>
+<a class="sourceLine" id="cb31-16" data-line-number="16"></a>
+<a class="sourceLine" id="cb31-17" data-line-number="17"><span class="co"># match zero or more p, separated by sep</span></a>
+<a class="sourceLine" id="cb31-18" data-line-number="18"><span class="kw">def</span> sep_by(p: Parser[_T], sep: Parser[_U]) <span class="op">-&gt;</span> Parser[List[_T]]:</a>
+<a class="sourceLine" id="cb31-19" data-line-number="19">    <span class="co"># mypy hates this thing&#39;s type</span></a>
+<a class="sourceLine" id="cb31-20" data-line-number="20">    <span class="co"># it should be:</span></a>
+<a class="sourceLine" id="cb31-21" data-line-number="21">    <span class="co"># def extract(t: Union[Tuple[_T, List[Tuple[_U, _T]]], None]) -&gt; List[_T]:</span></a>
+<a class="sourceLine" id="cb31-22" data-line-number="22">    <span class="co"># but that fails inference when we use it as an argument to pmap</span></a>
+<a class="sourceLine" id="cb31-23" data-line-number="23">    <span class="kw">def</span> extract(t):</a>
+<a class="sourceLine" id="cb31-24" data-line-number="24">        <span class="cf">if</span> t <span class="kw">is</span> <span class="va">None</span>:</a>
+<a class="sourceLine" id="cb31-25" data-line-number="25">            <span class="cf">return</span> []</a>
+<a class="sourceLine" id="cb31-26" data-line-number="26">        <span class="cf">return</span> [t[<span class="dv">0</span>]] <span class="op">+</span> [u[<span class="dv">1</span>] <span class="cf">for</span> u <span class="kw">in</span> t[<span class="dv">1</span>]]</a>
+<a class="sourceLine" id="cb31-27" data-line-number="27">    <span class="cf">return</span> pmap(</a>
+<a class="sourceLine" id="cb31-28" data-line-number="28">            extract,</a>
+<a class="sourceLine" id="cb31-29" data-line-number="29">            optional(chain(p, many(chain(sep, p)))))</a></code></pre>
+<p><code>only</code> can be used to ensure that our parser matched the entire input, with nothing left over. <code>lexeme</code> is a useful one for OBAN: it matches whatever the underlying parser matches, then consumes and discards any trailing white space. If we’re careful in how and where we use it, this makes matching whitespace-insensitive languages like OBAN (or C, or just about anything else other than Python) easy.</p>
+<p><code>sep_by</code> is handy for things like comma-separated lists; for example:</p>
+<pre><code>&gt;&gt;&gt; sep_by(integer, exactly(&#39;,&#39;))(&#39;1,2,3,4&#39;)
+([1, 2, 3, 4], &#39;&#39;)
+&gt;&gt;&gt; sep_by(integer, exactly(&#39;,&#39;))(&#39;1 , 2 ,  3 , 4&#39;)
+([1], &#39; , 2 ,  3 , 4&#39;)
+&gt;&gt;&gt; sep_by(lexeme(integer), lexeme(exactly(&#39;,&#39;)))(&#39;1 , 2 ,  3 , 4&#39;)
+([1, 2, 3, 4], &#39;&#39;)</code></pre>
+<h3 class="title">Finally, the Easy Part</h3>
+<p>We can now piece together our complete OBAN parser in a very simple way (albeit with some awkward concessions to <code>mypy</code> and Python’s limitations on recursive values):</p>
+<pre class="sourceCode python" id="cb33"><code class="sourceCode python"><a class="sourceLine" id="cb33-1" data-line-number="1">tribool: Parser[TriBool]</a>
+<a class="sourceLine" id="cb33-2" data-line-number="2">tribool <span class="op">=</span> alt(</a>
+<a class="sourceLine" id="cb33-3" data-line-number="3">    cmap(TriBool.FALSE, exactly(<span class="st">&#39;False&#39;</span>)),</a>
+<a class="sourceLine" id="cb33-4" data-line-number="4">    cmap(TriBool.TRUE, exactly(<span class="st">&#39;True&#39;</span>)),</a>
+<a class="sourceLine" id="cb33-5" data-line-number="5">    cmap(TriBool.FILENOTFOUND, exactly(<span class="st">&#39;FileNotFound&#39;</span>))</a>
+<a class="sourceLine" id="cb33-6" data-line-number="6">)</a>
+<a class="sourceLine" id="cb33-7" data-line-number="7"></a>
+<a class="sourceLine" id="cb33-8" data-line-number="8"><span class="co"># again, mypy isn&#39;t smart enough to follow the type of this &quot;lambda&quot;</span></a>
+<a class="sourceLine" id="cb33-9" data-line-number="9"><span class="kw">def</span> _string_extract(t):</a>
+<a class="sourceLine" id="cb33-10" data-line-number="10">    _<span class="dv">1</span>, parts, _<span class="dv">2</span> <span class="op">=</span> t</a>
+<a class="sourceLine" id="cb33-11" data-line-number="11">    <span class="cf">return</span> <span class="st">&#39;&#39;</span>.join(p[<span class="dv">1</span>] <span class="cf">if</span> <span class="bu">isinstance</span>(p, <span class="bu">tuple</span>) <span class="cf">else</span> p <span class="cf">for</span> p <span class="kw">in</span> parts)</a>
+<a class="sourceLine" id="cb33-12" data-line-number="12"></a>
+<a class="sourceLine" id="cb33-13" data-line-number="13">string: Parser[<span class="bu">str</span>]</a>
+<a class="sourceLine" id="cb33-14" data-line-number="14">string <span class="op">=</span> pmap(</a>
+<a class="sourceLine" id="cb33-15" data-line-number="15">    _string_extract,</a>
+<a class="sourceLine" id="cb33-16" data-line-number="16">    chain(</a>
+<a class="sourceLine" id="cb33-17" data-line-number="17">        exactly(<span class="st">&#39;&lt;&lt;&#39;</span>),</a>
+<a class="sourceLine" id="cb33-18" data-line-number="18">        many(alt(</a>
+<a class="sourceLine" id="cb33-19" data-line-number="19">            chars_while1(<span class="kw">lambda</span> c: c <span class="op">!=</span> <span class="st">&#39;&gt;&#39;</span> <span class="kw">and</span> c <span class="op">!=</span> <span class="st">&#39;^&#39;</span>),</a>
+<a class="sourceLine" id="cb33-20" data-line-number="20">            chain(exactly(<span class="st">&#39;^&#39;</span>), char)</a>
+<a class="sourceLine" id="cb33-21" data-line-number="21">        )),</a>
+<a class="sourceLine" id="cb33-22" data-line-number="22">        exactly(<span class="st">&#39;&gt;&gt;&#39;</span>)</a>
+<a class="sourceLine" id="cb33-23" data-line-number="23">    ))</a>
+<a class="sourceLine" id="cb33-24" data-line-number="24"></a>
+<a class="sourceLine" id="cb33-25" data-line-number="25"><span class="co"># there&#39;s a circular dependency between congregation, callout, and expression</span></a>
+<a class="sourceLine" id="cb33-26" data-line-number="26"><span class="co"># we&#39;ll break it in expression, by making it a &quot;proper&quot; function</span></a>
+<a class="sourceLine" id="cb33-27" data-line-number="27"><span class="kw">def</span> expression(<span class="bu">input</span>: <span class="bu">str</span>) <span class="op">-&gt;</span> ParseResult[Expression]:</a>
+<a class="sourceLine" id="cb33-28" data-line-number="28">    parser <span class="op">=</span> pmap(</a>
+<a class="sourceLine" id="cb33-29" data-line-number="29">        Expression,</a>
+<a class="sourceLine" id="cb33-30" data-line-number="30">        lexeme(alt(integer, tribool, string, congregation, callout)))</a>
+<a class="sourceLine" id="cb33-31" data-line-number="31">    <span class="cf">return</span> parser(<span class="bu">input</span>)</a>
+<a class="sourceLine" id="cb33-32" data-line-number="32"></a>
+<a class="sourceLine" id="cb33-33" data-line-number="33"><span class="co"># in a lazier world, this would work:</span></a>
+<a class="sourceLine" id="cb33-34" data-line-number="34"><span class="co"># expression: Parser[Expression]</span></a>
+<a class="sourceLine" id="cb33-35" data-line-number="35"><span class="co"># expression = pmap(</span></a>
+<a class="sourceLine" id="cb33-36" data-line-number="36"><span class="co">#     Expression,</span></a>
+<a class="sourceLine" id="cb33-37" data-line-number="37"><span class="co">#     lexeme(alt(integer, tribool, string, congregation, callout)))</span></a>
+<a class="sourceLine" id="cb33-38" data-line-number="38"></a>
+<a class="sourceLine" id="cb33-39" data-line-number="39">congregation: Parser[List[Expression]]</a>
+<a class="sourceLine" id="cb33-40" data-line-number="40">congregation <span class="op">=</span> pmap(</a>
+<a class="sourceLine" id="cb33-41" data-line-number="41">    second,</a>
+<a class="sourceLine" id="cb33-42" data-line-number="42">    chain(</a>
+<a class="sourceLine" id="cb33-43" data-line-number="43">        lexeme(exactly(<span class="st">&#39;(&#39;</span>)),</a>
+<a class="sourceLine" id="cb33-44" data-line-number="44">        sep_by(expression, lexeme(exactly(<span class="st">&#39;,&#39;</span>))),</a>
+<a class="sourceLine" id="cb33-45" data-line-number="45">        lexeme(exactly(<span class="st">&#39;)&#39;</span>))</a>
+<a class="sourceLine" id="cb33-46" data-line-number="46">    ))</a>
+<a class="sourceLine" id="cb33-47" data-line-number="47"></a>
+<a class="sourceLine" id="cb33-48" data-line-number="48"><span class="kw">def</span> _callout_extract(t):</a>
+<a class="sourceLine" id="cb33-49" data-line-number="49">    <span class="cf">return</span> { kv[<span class="dv">0</span>]: kv[<span class="dv">2</span>] <span class="cf">for</span> kv <span class="kw">in</span> t[<span class="dv">1</span>] }</a>
+<a class="sourceLine" id="cb33-50" data-line-number="50"></a>
+<a class="sourceLine" id="cb33-51" data-line-number="51">callout: Parser[Dict[<span class="bu">str</span>, Expression]]</a>
+<a class="sourceLine" id="cb33-52" data-line-number="52">callout <span class="op">=</span> pmap(</a>
+<a class="sourceLine" id="cb33-53" data-line-number="53">    _callout_extract,</a>
+<a class="sourceLine" id="cb33-54" data-line-number="54">    chain(</a>
+<a class="sourceLine" id="cb33-55" data-line-number="55">        lexeme(exactly(<span class="st">&#39;{&#39;</span>)),</a>
+<a class="sourceLine" id="cb33-56" data-line-number="56">        sep_by(chain(</a>
+<a class="sourceLine" id="cb33-57" data-line-number="57">                lexeme(string),</a>
+<a class="sourceLine" id="cb33-58" data-line-number="58">                lexeme(exactly(<span class="st">&#39;!&#39;</span>)),</a>
+<a class="sourceLine" id="cb33-59" data-line-number="59">                expression</a>
+<a class="sourceLine" id="cb33-60" data-line-number="60">            ),</a>
+<a class="sourceLine" id="cb33-61" data-line-number="61">            lexeme(exactly(<span class="st">&#39;&amp;&#39;</span>))),</a>
+<a class="sourceLine" id="cb33-62" data-line-number="62">        lexeme(exactly(<span class="st">&#39;}&#39;</span>))</a>
+<a class="sourceLine" id="cb33-63" data-line-number="63">    ))</a>
+<a class="sourceLine" id="cb33-64" data-line-number="64"></a>
+<a class="sourceLine" id="cb33-65" data-line-number="65"><span class="co"># since `lexeme` skips trailing whitespace, we need to allow leading whitespace</span></a>
+<a class="sourceLine" id="cb33-66" data-line-number="66"><span class="co">#   before a document explicitly, then ensure end-of-input</span></a>
+<a class="sourceLine" id="cb33-67" data-line-number="67">document: Parser[Expression]</a>
+<a class="sourceLine" id="cb33-68" data-line-number="68">document <span class="op">=</span> pmap(second, chain(whitespace, only(expression)))</a>
+<a class="sourceLine" id="cb33-69" data-line-number="69"></a>
+<a class="sourceLine" id="cb33-70" data-line-number="70"><span class="kw">def</span> main(argv: List[<span class="bu">str</span>]) <span class="op">-&gt;</span> <span class="bu">int</span>:</a>
+<a class="sourceLine" id="cb33-71" data-line-number="71">    <span class="cf">for</span> line <span class="kw">in</span> sys.stdin:</a>
+<a class="sourceLine" id="cb33-72" data-line-number="72">        res <span class="op">=</span> document(line)</a>
+<a class="sourceLine" id="cb33-73" data-line-number="73">        <span class="cf">if</span> res <span class="kw">is</span> <span class="va">None</span>:</a>
+<a class="sourceLine" id="cb33-74" data-line-number="74">            <span class="bu">print</span>(<span class="st">&#39;&gt; parse error&#39;</span>, <span class="bu">file</span><span class="op">=</span>sys.stderr)</a>
+<a class="sourceLine" id="cb33-75" data-line-number="75">        <span class="cf">else</span>:</a>
+<a class="sourceLine" id="cb33-76" data-line-number="76">            x, _ <span class="op">=</span> res</a>
+<a class="sourceLine" id="cb33-77" data-line-number="77">            <span class="bu">print</span>(<span class="ss">f&#39;&gt; </span><span class="sc">{x}</span><span class="ss">&#39;</span>)</a>
+<a class="sourceLine" id="cb33-78" data-line-number="78">    <span class="cf">return</span> <span class="dv">0</span></a>
+<a class="sourceLine" id="cb33-79" data-line-number="79"></a>
+<a class="sourceLine" id="cb33-80" data-line-number="80"><span class="cf">if</span> <span class="va">__name__</span> <span class="op">==</span> <span class="st">&#39;__main__&#39;</span>:</a>
+<a class="sourceLine" id="cb33-81" data-line-number="81">    sys.exit(main(sys.argv))</a></code></pre>
+<p><code>tribool</code> is simple: just match the fixed strings denoting each value. <code>string</code> uses <code>chars_while1</code> in alternation with a <code>chain</code> for escape sequences inside a <code>many</code>, then combines the parts of the parsed string with a function using <code>pmap</code>.</p>
+<p>The grammar of OBAN is mutually recursive: expressions include congregations and callouts, which themselves contain expressions. This mutual recursion in the grammar leads to mutual recursion in the parser. In Python, the only constructs that support this kind of mutual recursion by name are functions and classes, so in order to “break the cycle” we need to either make <code>expression</code> an explicit <code>def</code> function, or make both <code>congregation</code> and <code>callout</code> explicit <code>def</code> functions. For simplicity, I’ve chosen to make <code>expression</code> the explicitly recursive case.</p>
+<p><code>congregation</code> and <code>callout</code> use <code>sep_by</code> to handle the logic of delimited components. A <code>document</code> is just an expression which uses the entire input (with optional preceding white space). Our <code>main</code> function just reads a line at a time and attempts to parse it as an OBAN document; on success, we print the <code>Expression</code> object; on failure, we indicate a parse error. A few examples:</p>
+<pre><code>234
+&gt; Expression(234)
+FileNotFound
+&gt; Expression(&lt;TriBool.FILENOTFOUND: 3&gt;)
+xxxx
+&gt; parse error
+&lt;&lt;xxxx&gt;&gt;
+&gt; Expression(&#39;xxxx&#39;)
+(&lt;&lt;^&gt;x^&gt;&gt;&gt;, True, ())
+&gt; Expression([Expression(&#39;&gt;x&gt;&#39;), Expression(&lt;TriBool.TRUE: 2&gt;), Expression([])])
+{ &lt;&lt;first&gt;&gt; ! 23 &amp; &lt;&lt;second&gt;&gt; ! {&lt;&lt;nested&gt;&gt; ! True} &amp; &lt;&lt;third&gt;&gt; ! (True, False) }
+&gt; Expression({&#39;first&#39;: Expression(23), &#39;second&#39;: Expression({&#39;nested&#39;: Expression(&lt;TriBool.TRUE: 2&gt;)}), &#39;third&#39;: Expression([Expression(&lt;TriBool.TRUE: 2&gt;), Expression(&lt;TriBool.FALSE: 1&gt;)])})</code></pre>
+<p>The `parse error&quot; message is, of course, unsatisfying. Our choice to model parsers on top of the option monad means that we don’t get any additional information in the failure case. For some uses (say, parsing data from a web API whose results should be well-formed except in the case of a truly catastrophic condition), this may be totally acceptable. For interactive use by humans (say, as part of a domain-specific language compiler), this is inadequate. Next time, we’ll see how we can use a different choice of “base monad” to provide much richer error reporting.</p>
+<p>Our implementation also has some obvious performance issues. For one, since Python strings are immutable, we’re constantly allocating and copying new strings for the remaining input after each parse step. We’ll see a faster approach next time. For another, Python is not a language which tries very hard to optimize deep call stacks or purely functional code in general. There’s less that we can do about this. To me, the tradeoff is worth it: a parser is not usually the bottleneck in the performance of a system, and the ease of reasoning about functional code outweighs the potential loss of parsing speed.</p>
+<h3 class="title">Parser Combinators in the Wild</h3>
+<p>Of course, in practice, we’d like to reach for an existing parser combinator library rather than “roll our own”. Some of my favorites are <a href="https://hackage.haskell.org/package/megaparsec">Megaparsec</a> (for Haskell), <a href="https://crates.io/crates/nom">nom</a> (for Rust), <a href="https://github.com/ziman/lightyear">Lightyear</a> (for Idris), and <a href="https://github.com/sprache/Sprache">Sprache</a> for C#. Unfortunately, I haven’t found one I like quite as much for Python. <a href="https://github.com/drhagen/parsita">Parsita</a> looks promising, but I have a much lower tolerance for “magic” than required by all of the metaclasses and overloading in that library (although it does make the syntax nicer—nearly as concise as parsers in Haskell)<a href="#fn4" class="footnote-ref" id="fnref4"><sup>4</sup></a>.</p>
+<p>However, as we’ve seen, it’s not that hard to hand-write a minimal set of combinators to cover basic parsing needs. I’ve even done it in Excel VBA, although that was very, very tedious.</p>
+<hr />
+<p>The OBAN grammar (<code>oban.ebnf</code>) and parser code (<code>oban_pc_basic.py</code>) can be viewed at <a href="https://gist.github.com/derrickturk/7ead182081f2ab1b09225fd0c11dbda9">. You may also spot a “hand-written” recursive descent parser which uses a somewhat different approach: consider that a sneak preview of the next post in this series, where we’ll tackle the problems of error reporting and excessive string copying.</p>
+<section class="footnotes">
+<hr />
+<ol>
+<li id="fn1"><p>It’s true that some “regex” implementations go beyond the strictly regular expressions and include features for handling recursive constructs. It’s also true that many “regex” aficionados take this too far and start trying to do things like parse HTML with them, leading to the <a href="https://stackoverflow.com/a/1732454/30160">famous StackOverflow answer</a>, with which I am fundamentally in agreement and thus will say no more about these “irregular regex” capabilities.<a href="#fnref1" class="footnote-back">↩</a></p></li>
+<li id="fn2"><p>As with any language which combines indirection (pointers/references) with mutable state, it can be done, though!</p>
+<pre class="sourceCode python" id="cb6"><code class="sourceCode python"><a class="sourceLine" id="cb6-1" data-line-number="1">xs <span class="op">=</span> <span class="bu">list</span>()</a>
+<a class="sourceLine" id="cb6-2" data-line-number="2">xs.append(xs)</a>
+<a class="sourceLine" id="cb6-3" data-line-number="3"><span class="bu">print</span>(xs)</a>
+<a class="sourceLine" id="cb6-4" data-line-number="4"><span class="bu">print</span>(xs[<span class="dv">0</span>])</a>
+<a class="sourceLine" id="cb6-5" data-line-number="5"><span class="bu">print</span>(xs[<span class="dv">0</span>][<span class="dv">0</span>])</a>
+<a class="sourceLine" id="cb6-6" data-line-number="6"><span class="co"># ... ad infinitum</span></a></code></pre>
+<a href="#fnref2" class="footnote-back">↩</a></li>
+<li id="fn3"><p>Python’s interactive interpreter doesn’t print anything when an expression evaluates to <code>None</code>. This is so that you can call functions with no return value (which “secretly” and implicitly return <code>None</code>) without seeing output. Another fine example of Python’s “beginner-friendly” “simplicity”!<a href="#fnref3" class="footnote-back">↩</a></p></li>
+<li id="fn4"><p>I don’t want to rag on Parsita at all—I’ve never used it, but I’d consider it for a “real” Python parsing problem. However, it does seem to me that the “Pythonic” culture’s attitude toward complexity is a bit like the kid who, having been told to clean up her room by her parents, picks up all the junk off the floor and shoves it into the closet. It’s not the end of the world to write a couple extra lines of code, especially when the alternative is <a href="http://wiki.c2.com/?AddingEpicycles">adding epicycles</a> in the form of more indirection and more metaprogramming.<a href="#fnref4" class="footnote-back">↩</a></p></li>
+</ol>
+</section>
+
+        <!--#include file="/include/after.html" -->
+    </body>
+</html>
