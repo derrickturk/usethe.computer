@@ -634,7 +634,7 @@ I've even done it in Excel VBA, although that was very, very tedious.
 
 ---
 
-The OBAN grammar (`oban.ebnf`) and parser code (`oban_pc_basic.py`) can be viewed at <a href="https://gist.github.com/derrickturk/7ead182081f2ab1b09225fd0c11dbda9">.
+The OBAN grammar (`oban.ebnf`) and parser code (`oban_pc_basic.py`) can be viewed at <a href="https://gist.github.com/derrickturk/7ead182081f2ab1b09225fd0c11dbda9">https://gist.github.com/derrickturk/7ead182081f2ab1b09225fd0c11dbda9</a>.
 You may also spot a "hand-written" recursive descent parser which uses a somewhat different approach: consider that a sneak preview of the next post in this series, where we'll tackle the problems of error reporting and excessive string copying.
 
 [^1]: It's true that some "regex" implementations go beyond the strictly regular expressions and include features for handling recursive constructs. It's also true that many "regex" aficionados take this too far and start trying to do things like parse HTML with them, leading to the <a href="https://stackoverflow.com/a/1732454/30160">famous StackOverflow answer</a>, with which I am fundamentally in agreement and thus will say no more about these "irregular regex" capabilities.

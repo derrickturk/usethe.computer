@@ -202,11 +202,14 @@ a.sourceLine {
 
 .sourceCode { overflow: visible; }
 
+pre {
+    overflow-x: auto;
+    word-wrap: anywhere;
+}
+
 pre.sourceCode {
     border: 2px solid black;
     padding: 1em;
-    word-wrap: anywhere;
-    overflow-x: auto;
 }
 
 code.sourceCode {
