@@ -200,8 +200,6 @@ a.sourceLine {
     text-decoration: inherit;
 }
 
-.sourceCode { overflow: visible; }
-
 pre {
     overflow-x: auto;
     word-wrap: anywhere;
