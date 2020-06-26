@@ -10,6 +10,18 @@
 
         <div class="linkcerpt">
             <div class="linkcerpt-header">
+                <h3 class="title"><a href="/posts/19-irregular-expressions-revisited.html">
+                        Irregular Expressions, Revisited
+                </a></h3>
+                <h4 class="date">2020-06-26</h4>
+            </div>
+            <p>Last time, we used a minimalist parser combinator library to build a parser for an oddly familiar language called OBAN.
+            The problem with our previous parser is that it produces extremely unhelpful error messages. This is probably fine for a parser which runs as part of an automated toolchain and processes almost-always-valid input, but is completely unacceptable for a user-facing tool.</p>
+            <p>We’ll address this, while making only minimal changes to the parser’s structure, by tweaking the “base monad” on which it's built. In other words, we’ll change what it means to chain parsers together.</p>
+        </div>
+
+        <div class="linkcerpt">
+            <div class="linkcerpt-header">
                 <h3 class="title"><a href="/posts/18-irregular-expressions.html">
                         Irregular Expressions: You Need a Parser
                 </a></h3>
