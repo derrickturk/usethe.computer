@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <!--#set var="title" value="Fun With Simulated Typestate in Python 3.8" -->
+        <!--#include file="/include/head.html" -->
+    </head>
+    <body>
+        <!--#include file="/include/before.html" -->
+        <h2 class="title">Fun With Simulated Typestate in Python 3.8</h2>
+        <h3 class="date">2020-07-21</h3>
+
+<blockquote>
+<p>“There’s an old saying in Tennessee—I know it’s in Texas, probably in Tennessee—that says, ‘Fool me once, shame on…shame on you. Fool me—you can’t get fooled again.’”<br />
+–George W. Bush</p>
+</blockquote>
+<p>It’s true, you can’t get fooled again! Not any more than you can open an already-open door. But does your type system know that?</p>
+<p>Today, in honor of the recent release of Python 3.8<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a>, we’ll introduce a fun type-level programming trick well-known already in other language communities, which will let us automatically check these and other invariants.</p>
+<p>Technically, what we’re trying to do is approximate a discipline of <a href="https://en.wikipedia.org/wiki/Typestate_analysis"><em>typestate</em></a> in our available type system. There are several popular tricks for doing this; we’ll cover two of them in this article. The first is most commonly found in languages with at least some semblance of <em>dependent typing</em>—that is, types which are parameterized by values (for example, integers, as in C++’s <code>std::array&lt;double, 5&gt;</code>). With the new <a href="https://docs.python.org/3/library/typing.html#typing.Literal"><code>typing.Literal</code></a> class introduced in Python 3.8, Python takes a big step in this direction. The second is awkward and verbose, but available in most languages with subtyping and generic types (for example, almost all “object-oriented” languages).</p>
+<p>Typestate is an augmentation to a type system which lets us model objects which have defined states, with certain operations only available in given states, and where operations may alter the state of the object in a defined way. “True” typestate support is quite uncommon in programming languages, but we can use the techniques we’ll illustrate shortly to simulate typestate by turning each state into a distinct type, avoiding duplication by making use of polymorphic (“generic”) types.</p>
+<h3 class="title" id="after-the-horse-has-left-the-barn">After The Horse Has Left The Barn</h3>
+<p>Let’s start with a simple system, like a door (if you think this is silly, feel free to imagine a filesystem, or a database connection, with similar states and constraints). Doors have the following rules:</p>
+<ul>
+<li>A door can be open or closed.</li>
+<li>If closed, it can be locked or unlocked (we’ll take closed-but-unlocked to be the “default” state of a door).</li>
+<li>We can only open a closed, unlocked door.</li>
+<li>We can only close an open door.</li>
+<li>We can only lock a closed, unlocked door.</li>
+</ul>
+<p>We’d like to write a <code>Door</code> class which provides open, close, lock, and unlock operations honoring these invariants. The approach we’ll take is this: first, define a type whose values are the possible states of the door, then create a <code>Door</code> class parametric over <code>Literal</code>s of that type.</p>
+<p>The <code>Literal</code> type is parameterized by the values objects of the type are permitted to contain. It’s probably easiest to understand by example: <code>3</code> is a valid value of type <code>Literal[3]</code>, but <code>4</code> is not. <code>Literal</code> can be given multiple parameters, indicating objects which may be take any of several literal values. The original intent of the type was to capture the typing of functions like Python’s <code>open</code> (simplified, something like <code>def open(path: str, mode: Literal['r', 'rb', 'w', 'wb']) ...</code>). However, in conjunction with <code>Enum</code> types, it’ll be quite useful as something like “singleton types” in Haskell: a way to lift values denoting possible “typestates” to the type level.</p>
+<p>Let’s begin with some imports, and a definition of our possible door states:</p>
+<pre class="sourceCode python" id="cb1"><code class="sourceCode python"><a class="sourceLine" id="cb1-1" data-line-number="1"><span class="im">from</span> enum <span class="im">import</span> Enum, auto</a>
+<a class="sourceLine" id="cb1-2" data-line-number="2"><span class="im">from</span> typing <span class="im">import</span> cast, Generic, Literal, TypeVar</a>
+<a class="sourceLine" id="cb1-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb1-4" data-line-number="4"><span class="kw">class</span> DoorState(Enum):</a>
+<a class="sourceLine" id="cb1-5" data-line-number="5">    CLOSED <span class="op">=</span> auto()</a>
+<a class="sourceLine" id="cb1-6" data-line-number="6">    LOCKED <span class="op">=</span> auto()</a>
+<a class="sourceLine" id="cb1-7" data-line-number="7">    OPEN <span class="op">=</span> auto()</a></code></pre>
+<p>That covers the possible states as previously discussed (<code>CLOSED</code> denotes a closed, unlocked door). We’ll need to write a generic <code>Door</code> class now; in Python’s type system this requires a <code>TypeVar</code> and the use of <code>Generic</code> as a superclass:</p>
+<pre class="sourceCode python" id="cb2"><code class="sourceCode python"><a class="sourceLine" id="cb2-1" data-line-number="1">_S <span class="op">=</span> TypeVar(<span class="st">&#39;_S&#39;</span>, bound <span class="op">=</span> DoorState)</a>
+<a class="sourceLine" id="cb2-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb2-3" data-line-number="3"><span class="kw">class</span> Door(Generic[_S]):</a>
+<a class="sourceLine" id="cb2-4" data-line-number="4">    <span class="co"># these methods are &quot;privileged&quot;; they can cast because the invariants</span></a>
+<a class="sourceLine" id="cb2-5" data-line-number="5">    <span class="co">#   are guaranteed as long as calling code typechecks</span></a>
+<a class="sourceLine" id="cb2-6" data-line-number="6">    </a>
+<a class="sourceLine" id="cb2-7" data-line-number="7">    <span class="kw">def</span> <span class="bu">open</span>(<span class="va">self</span>: <span class="st">&#39;Door[Literal[DoorState.CLOSED]]&#39;</span></a>
+<a class="sourceLine" id="cb2-8" data-line-number="8">            ) <span class="op">-&gt;</span> <span class="st">&#39;Door[Literal[DoorState.OPEN]]&#39;</span>:</a>
+<a class="sourceLine" id="cb2-9" data-line-number="9">        <span class="cf">return</span> cast(Door[Literal[DoorState.OPEN]], <span class="va">self</span>)</a>
+<a class="sourceLine" id="cb2-10" data-line-number="10"></a>
+<a class="sourceLine" id="cb2-11" data-line-number="11">    <span class="kw">def</span> close(<span class="va">self</span>: <span class="st">&#39;Door[Literal[DoorState.OPEN]]&#39;</span></a>
+<a class="sourceLine" id="cb2-12" data-line-number="12">            ) <span class="op">-&gt;</span> <span class="st">&#39;Door[Literal[DoorState.CLOSED]]&#39;</span>:</a>
+<a class="sourceLine" id="cb2-13" data-line-number="13">        <span class="cf">return</span> cast(Door[Literal[DoorState.CLOSED]], <span class="va">self</span>)</a>
+<a class="sourceLine" id="cb2-14" data-line-number="14"></a>
+<a class="sourceLine" id="cb2-15" data-line-number="15">    <span class="kw">def</span> lock(<span class="va">self</span>: <span class="st">&#39;Door[Literal[DoorState.CLOSED]]&#39;</span></a>
+<a class="sourceLine" id="cb2-16" data-line-number="16">            ) <span class="op">-&gt;</span> <span class="st">&#39;Door[Literal[DoorState.LOCKED]]&#39;</span>:</a>
+<a class="sourceLine" id="cb2-17" data-line-number="17">        <span class="cf">return</span> cast(Door[Literal[DoorState.LOCKED]], <span class="va">self</span>)</a>
+<a class="sourceLine" id="cb2-18" data-line-number="18"></a>
+<a class="sourceLine" id="cb2-19" data-line-number="19">    <span class="kw">def</span> unlock(<span class="va">self</span>: <span class="st">&#39;Door[Literal[DoorState.LOCKED]]&#39;</span></a>
+<a class="sourceLine" id="cb2-20" data-line-number="20">            ) <span class="op">-&gt;</span> <span class="st">&#39;Door[Literal[DoorState.CLOSED]]&#39;</span>:</a>
+<a class="sourceLine" id="cb2-21" data-line-number="21">        <span class="cf">return</span> cast(Door[Literal[DoorState.CLOSED]], <span class="va">self</span>)</a>
+<a class="sourceLine" id="cb2-22" data-line-number="22"></a>
+<a class="sourceLine" id="cb2-23" data-line-number="23"><span class="kw">def</span> new_door() <span class="op">-&gt;</span> Door[Literal[DoorState.CLOSED]]:</a>
+<a class="sourceLine" id="cb2-24" data-line-number="24">    <span class="cf">return</span> Door()</a></code></pre>
+<p>The methods on <code>Door</code> each have a different type annotation on <code>self</code> and a different return type, using the appropriate <code>Literal</code> types lifted from values of <code>DoorState</code> to implement the rules we laid out earlier. Unfortunately, we still have to do the stupid type-as-string dance because Python still insists on eagerly evaluating type annotations.</p>
+<p>The <code>Door</code> constructor (the default <code>__init__</code> method) is generic over door states: we could create a door in a given state by annotating a variable; for instance:</p>
+<pre class="sourceCode python" id="cb3"><code class="sourceCode python"><a class="sourceLine" id="cb3-1" data-line-number="1">open_door: Door[Literal[DoorState.OPEN]] <span class="op">=</span> Door()</a></code></pre>
+<p>However, we’ve provided the <code>new_door</code> function to concisely initialize a door in the closed, unlocked state.</p>
+<p>“Under the hood”, all door states are represented the same way, so it’s safe to use <code>cast</code>. Python is all about convention over rigor, so we don’t have a way to prevent programmers from misusing our class by <code>cast</code>ing in their calling code, but we should document that it’s used internally and safe due to the use of simulated typestate to ensure our invariants hold.</p>
+<p>Let’s see it in action:</p>
+<pre class="sourceCode python" id="cb4"><code class="sourceCode python"><a class="sourceLine" id="cb4-1" data-line-number="1"><span class="cf">if</span> <span class="va">__name__</span> <span class="op">==</span> <span class="st">&#39;__main__&#39;</span>:</a>
+<a class="sourceLine" id="cb4-2" data-line-number="2">    <span class="co"># a valid sequence</span></a>
+<a class="sourceLine" id="cb4-3" data-line-number="3">    door <span class="op">=</span> new_door() <span class="co"># a closed door</span></a>
+<a class="sourceLine" id="cb4-4" data-line-number="4">    door <span class="op">=</span> door.<span class="bu">open</span>() <span class="co"># open it</span></a>
+<a class="sourceLine" id="cb4-5" data-line-number="5">    door <span class="op">=</span> door.close() <span class="co"># close it again</span></a>
+<a class="sourceLine" id="cb4-6" data-line-number="6">    door <span class="op">=</span> door.lock() <span class="co"># lock it</span></a>
+<a class="sourceLine" id="cb4-7" data-line-number="7">    door <span class="op">=</span> door.unlock() <span class="co"># unlock it</span></a>
+<a class="sourceLine" id="cb4-8" data-line-number="8">    door <span class="op">=</span> door.<span class="bu">open</span>() <span class="co"># open it again</span></a>
+<a class="sourceLine" id="cb4-9" data-line-number="9"></a>
+<a class="sourceLine" id="cb4-10" data-line-number="10">    <span class="co"># various forbidden operations</span></a>
+<a class="sourceLine" id="cb4-11" data-line-number="11">    <span class="co"># door = door.lock() # can&#39;t lock an open door</span></a>
+<a class="sourceLine" id="cb4-12" data-line-number="12">    <span class="co"># door = door.unlock() # or unlock it</span></a>
+<a class="sourceLine" id="cb4-13" data-line-number="13">    door <span class="op">=</span> door.close()</a>
+<a class="sourceLine" id="cb4-14" data-line-number="14">    <span class="co"># door = door.close() # or close a closed door</span></a></code></pre>
+<p>Try uncommenting the “forbidden” lines and see the type errors produced by <code>mypy</code>! They’re not pretty, but they convey the problem, more-or-less:</p>
+<pre><code>typestate.py:47: error: Invalid self argument &quot;Door[Literal[DoorState.OPEN]]&quot; to attribute function &quot;lock&quot; with type &quot;Callable[[Door[Literal[DoorState.CLOSED]]], Door[Literal[DoorState.LOCKED]]]&quot;</code></pre>
+<p>In other words, we can’t lock an open door.</p>
+<p>Note that you’ll need to invoke <code>mypy</code> with the <code>--allow-redefinition</code> argument in order for the code to typecheck; that’s so that we can redefine <code>door</code> to take new types on each line. This practice of “variable shadowing”, uncontroversial in other languages, is essential for writing typestate-heavy code in a concise way.</p>
+<h3 class="title" id="fool-me-twice-shame-on-my-type-system">Fool Me Twice, Shame On My Type System</h3>
+<p>We can now implement the rules of “fooling”, as elaborated by President Bush, in a very similar fashion:</p>
+<pre class="sourceCode python" id="cb6"><code class="sourceCode python"><a class="sourceLine" id="cb6-1" data-line-number="1"><span class="im">from</span> enum <span class="im">import</span> Enum, auto</a>
+<a class="sourceLine" id="cb6-2" data-line-number="2"><span class="im">from</span> typing <span class="im">import</span> cast, Generic, Literal, TypeVar</a>
+<a class="sourceLine" id="cb6-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb6-4" data-line-number="4"><span class="kw">class</span> MeState(Enum):</a>
+<a class="sourceLine" id="cb6-5" data-line-number="5">    UNFOOLED <span class="op">=</span> auto()</a>
+<a class="sourceLine" id="cb6-6" data-line-number="6">    FOOLED <span class="op">=</span> auto()</a>
+<a class="sourceLine" id="cb6-7" data-line-number="7"></a>
+<a class="sourceLine" id="cb6-8" data-line-number="8">_S <span class="op">=</span> TypeVar(<span class="st">&#39;_S&#39;</span>, bound <span class="op">=</span> MeState)</a>
+<a class="sourceLine" id="cb6-9" data-line-number="9"></a>
+<a class="sourceLine" id="cb6-10" data-line-number="10"><span class="kw">class</span> Me(Generic[_S]):</a>
+<a class="sourceLine" id="cb6-11" data-line-number="11">    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, name: <span class="bu">str</span>):</a>
+<a class="sourceLine" id="cb6-12" data-line-number="12">        <span class="va">self</span>.name <span class="op">=</span> name</a>
+<a class="sourceLine" id="cb6-13" data-line-number="13"></a>
+<a class="sourceLine" id="cb6-14" data-line-number="14">    <span class="kw">def</span> fool(<span class="va">self</span>: <span class="st">&#39;Me[Literal[MeState.UNFOOLED]]&#39;</span></a>
+<a class="sourceLine" id="cb6-15" data-line-number="15">            ) <span class="op">-&gt;</span> <span class="st">&#39;Me[Literal[MeState.FOOLED]]&#39;</span>:</a>
+<a class="sourceLine" id="cb6-16" data-line-number="16">        <span class="bu">print</span>(<span class="ss">f&#39;shame on </span><span class="sc">{</span><span class="va">self</span><span class="sc">.</span>name<span class="sc">}</span><span class="ss">&#39;</span>)</a>
+<a class="sourceLine" id="cb6-17" data-line-number="17">        <span class="cf">return</span> cast(Me[Literal[MeState.FOOLED]], <span class="va">self</span>)</a>
+<a class="sourceLine" id="cb6-18" data-line-number="18"></a>
+<a class="sourceLine" id="cb6-19" data-line-number="19"><span class="cf">if</span> <span class="va">__name__</span> <span class="op">==</span> <span class="st">&#39;__main__&#39;</span>:</a>
+<a class="sourceLine" id="cb6-20" data-line-number="20">    me: Me[Literal[MeState.UNFOOLED]] <span class="op">=</span> Me(<span class="st">&#39;George&#39;</span>)</a>
+<a class="sourceLine" id="cb6-21" data-line-number="21">    me <span class="op">=</span> me.fool()</a>
+<a class="sourceLine" id="cb6-22" data-line-number="22">    <span class="co"># me = me.fool() # you don&#39;t get fooled again!</span></a></code></pre>
+<p>Once again, you’ll need to run <code>mypy --allow-redefinition</code> to typecheck this code.</p>
+<h3 class="title" id="into-the-chasm-of-madness">Into the Chasm of Madness</h3>
+<p>What if the rules of fooling had been a hair different?</p>
+<blockquote>
+<p>“Fool me once, shame on me. Fool me twice, shame on me. Fool me three times, shame on me. Fool me four times, shame on me. Fool me five times, shame on me. Fool me more than five times—you don’t get fooled again!”<br />
+–Georg M. Shrub, from an adjacent parallel universe</p>
+</blockquote>
+<p>This is a much harder problem. To quote the <a href="https://www.python.org/dev/peps/pep-0586/#true-dependent-types-integer-generics">PEP introducing <code>Literal</code></a>, “[a]t the very least, it would be useful to add some form of integer generics”—but that’s not possible with the current version of <code>Literal</code>. Luckily, we don’t really need integer generics (or true dependent types, which subsume them) for this challenge: we’ll get by with an encoding of natural numbers as types.</p>
+<p>This is the older, nastier, but more reliable trick for “typestate” in object-oriented languages with generic types (say, Python): we’ll create a class hierarchy describing the possible states (these classes will generally not be used at runtime at all; they’re purely “compile-time” artifacts), then make our type-with-typestate generic over these state types (usually using a “superclass bound”).</p>
+<p>Oh, right: we’ll also need a type-level encoding of proofs that one given natural number is less than or equal to another! We’re going to lift the necessary ideas right out of the dependently-typed world, and find that they work just fine (if a bit awkwardly) in Python’s type system.</p>
+<p>Natural numbers are easy, following the typical Peano-style unary encoding, with a zero and a successor function. The only odd thing is that these are types, not values!</p>
+<pre class="sourceCode python" id="cb7"><code class="sourceCode python"><a class="sourceLine" id="cb7-1" data-line-number="1"><span class="im">from</span> enum <span class="im">import</span> Enum, auto</a>
+<a class="sourceLine" id="cb7-2" data-line-number="2"><span class="im">from</span> typing <span class="im">import</span> cast, Generic, Literal, TypeVar</a>
+<a class="sourceLine" id="cb7-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb7-4" data-line-number="4"><span class="co"># natural numbers, as types</span></a>
+<a class="sourceLine" id="cb7-5" data-line-number="5"></a>
+<a class="sourceLine" id="cb7-6" data-line-number="6"><span class="kw">class</span> Nat:</a>
+<a class="sourceLine" id="cb7-7" data-line-number="7">    <span class="cf">pass</span></a>
+<a class="sourceLine" id="cb7-8" data-line-number="8"></a>
+<a class="sourceLine" id="cb7-9" data-line-number="9"><span class="kw">class</span> Z(Nat):</a>
+<a class="sourceLine" id="cb7-10" data-line-number="10">    <span class="cf">pass</span></a>
+<a class="sourceLine" id="cb7-11" data-line-number="11"></a>
+<a class="sourceLine" id="cb7-12" data-line-number="12">_N <span class="op">=</span> TypeVar(<span class="st">&#39;_N&#39;</span>, bound <span class="op">=</span> Nat)</a>
+<a class="sourceLine" id="cb7-13" data-line-number="13"><span class="kw">class</span> S(Nat, Generic[_N]):</a>
+<a class="sourceLine" id="cb7-14" data-line-number="14">    <span class="cf">pass</span></a></code></pre>
+<p>I don’t recall the traditional names of the less-than-or-equal proof constructors for the trivial and inductive cases, so we’ll call them <code>duh</code> and <code>well</code> for the humorous effect:</p>
+<pre class="sourceCode python" id="cb8"><code class="sourceCode python"><a class="sourceLine" id="cb8-1" data-line-number="1"><span class="co"># proofs of less-or-equal between type-level nats, as types</span></a>
+<a class="sourceLine" id="cb8-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb8-3" data-line-number="3">_M <span class="op">=</span> TypeVar(<span class="st">&#39;_M&#39;</span>, bound <span class="op">=</span> Nat)</a>
+<a class="sourceLine" id="cb8-4" data-line-number="4"><span class="kw">class</span> _LTE(Generic[_N, _M]):</a>
+<a class="sourceLine" id="cb8-5" data-line-number="5">    <span class="cf">pass</span></a>
+<a class="sourceLine" id="cb8-6" data-line-number="6"></a>
+<a class="sourceLine" id="cb8-7" data-line-number="7"><span class="co"># lock LTE construction behind functions which ensure well-typedness</span></a>
+<a class="sourceLine" id="cb8-8" data-line-number="8"></a>
+<a class="sourceLine" id="cb8-9" data-line-number="9"><span class="kw">def</span> duh() <span class="op">-&gt;</span> _LTE[Z, _N]:</a>
+<a class="sourceLine" id="cb8-10" data-line-number="10">    <span class="cf">return</span> _LTE()</a>
+<a class="sourceLine" id="cb8-11" data-line-number="11"></a>
+<a class="sourceLine" id="cb8-12" data-line-number="12"><span class="kw">def</span> well(prf: _LTE[_N, _M]) <span class="op">-&gt;</span> _LTE[S[_N], S[_M]]:</a>
+<a class="sourceLine" id="cb8-13" data-line-number="13">    <span class="cf">return</span> _LTE()</a></code></pre>
+<p>Of course, a user could be very naughty and directly construct an (invalid) <code>_LTE</code> proof object, but we’ve used the underscore prefix to indicate our disapproval of such intrigues. The idea is that <code>duh()</code> constructs a proof that zero is less than or equal to any natural number (the trivial case), and <code>well()</code> transforms a proof that <code>n &lt;= m</code> to a proof that <code>n + 1 &lt;= m + 1</code> (the inductive case).</p>
+<p>The <code>fool</code> function we’re about to write will require one of these <code>_LTE</code> objects as an argument, to ensure that we’ve been fooled no more than four times prior to being fooled again.</p>
+<pre class="sourceCode python" id="cb9"><code class="sourceCode python"><a class="sourceLine" id="cb9-1" data-line-number="1"><span class="co"># we&#39;ll parameterize Me by a Nat indicating the number of times fooled thus far</span></a>
+<a class="sourceLine" id="cb9-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb9-3" data-line-number="3"><span class="co"># since we can be fooled at most five times, we&#39;ll want a handy type-level four</span></a>
+<a class="sourceLine" id="cb9-4" data-line-number="4">FOUR <span class="op">=</span> S[S[S[S[Z]]]]</a>
+<a class="sourceLine" id="cb9-5" data-line-number="5"></a>
+<a class="sourceLine" id="cb9-6" data-line-number="6"><span class="kw">class</span> Me(Generic[_N]):</a>
+<a class="sourceLine" id="cb9-7" data-line-number="7">    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, name: <span class="bu">str</span>):</a>
+<a class="sourceLine" id="cb9-8" data-line-number="8">        <span class="va">self</span>.name <span class="op">=</span> name</a>
+<a class="sourceLine" id="cb9-9" data-line-number="9"></a>
+<a class="sourceLine" id="cb9-10" data-line-number="10">    <span class="kw">def</span> fool(<span class="va">self</span>: <span class="st">&#39;Me[_N]&#39;</span>, prf: _LTE[_N, FOUR]) <span class="op">-&gt;</span> <span class="st">&#39;Me[S[_N]]&#39;</span>:</a>
+<a class="sourceLine" id="cb9-11" data-line-number="11">        <span class="bu">print</span>(<span class="ss">f&#39;shame on </span><span class="sc">{</span><span class="va">self</span><span class="sc">.</span>name<span class="sc">}</span><span class="ss">&#39;</span>)</a>
+<a class="sourceLine" id="cb9-12" data-line-number="12">        <span class="cf">return</span> cast(Me[S[_N]], <span class="va">self</span>)</a>
+<a class="sourceLine" id="cb9-13" data-line-number="13"></a>
+<a class="sourceLine" id="cb9-14" data-line-number="14"><span class="kw">def</span> naif(name: <span class="bu">str</span>) <span class="op">-&gt;</span> Me[Z]:</a>
+<a class="sourceLine" id="cb9-15" data-line-number="15">    <span class="cf">return</span> Me(name)</a></code></pre>
+<p>The <code>fool</code> function requires that <code>self</code> has been fooled no more than four times (as witnessed by the proof <code>prf</code>), and produces an updated <code>Me</code> which has been fooled one more time than previously. This isn’t Idris (or another dependently-typed language with support for proof search), so we’ll need to construct our proofs by hand! Luckily, they’re more tedious than they are difficult:</p>
+<pre class="sourceCode python" id="cb10"><code class="sourceCode python"><a class="sourceLine" id="cb10-1" data-line-number="1"><span class="cf">if</span> <span class="va">__name__</span> <span class="op">==</span> <span class="st">&#39;__main__&#39;</span>:</a>
+<a class="sourceLine" id="cb10-2" data-line-number="2">    me <span class="op">=</span> naif(<span class="st">&#39;George&#39;</span>)</a>
+<a class="sourceLine" id="cb10-3" data-line-number="3">    me <span class="op">=</span> me.fool(duh())</a>
+<a class="sourceLine" id="cb10-4" data-line-number="4">    <span class="co"># unfortunately, this isn&#39;t Idris, so we have to bring our own proofs</span></a>
+<a class="sourceLine" id="cb10-5" data-line-number="5">    <span class="co">#   each time we get fooled, attesting that we&#39;ve been fooled no more</span></a>
+<a class="sourceLine" id="cb10-6" data-line-number="6">    <span class="co">#   than four times already</span></a>
+<a class="sourceLine" id="cb10-7" data-line-number="7">    me <span class="op">=</span> me.fool(well(duh()))</a>
+<a class="sourceLine" id="cb10-8" data-line-number="8">    me <span class="op">=</span> me.fool(well(well(duh())))</a>
+<a class="sourceLine" id="cb10-9" data-line-number="9">    me <span class="op">=</span> me.fool(well(well(well(duh()))))</a>
+<a class="sourceLine" id="cb10-10" data-line-number="10">    me <span class="op">=</span> me.fool(well(well(well(well(duh())))))</a>
+<a class="sourceLine" id="cb10-11" data-line-number="11">    <span class="co"># me = me.fool(no_possible_proof) # you don&#39;t get fooled again!</span></a></code></pre>
+<p>There’s no possible value which can be provided for <code>no_possible_proof</code>, unless you bypass our “security” and directly invoke <code>_LTE()</code>. Thus, the type system prevents us from getting fooled, well, again again again again again again.</p>
+<hr />
+<p>All code for this article is available at <a href="https://gist.github.com/derrickturk/f77d467481fae1b8c2c188e884713dfa">https://gist.github.com/derrickturk/f77d467481fae1b8c2c188e884713dfa</a>.</p>
+<section class="footnotes">
+<hr />
+<ol>
+<li id="fn1"><p>This is (still) not a Python blog! Don’t worry, at some point, we will return to more “exotic” languages. My goal is to illustrate interesting concepts in a familiar language to help introduce data scientists and new programmers to a wider world.<a href="#fnref1" class="footnote-back">↩</a></p></li>
+</ol>
+</section>
+
+        <!--#include file="/include/after.html" -->
+    </body>
+</html>
