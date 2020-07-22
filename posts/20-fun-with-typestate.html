@@ -25,6 +25,7 @@
 <li>We can only open a closed, unlocked door.</li>
 <li>We can only close an open door.</li>
 <li>We can only lock a closed, unlocked door.</li>
+<li>We can only unlock a closed, locked door.</li>
 </ul>
 <p>We’d like to write a <code>Door</code> class which provides open, close, lock, and unlock operations honoring these invariants. The approach we’ll take is this: first, define a type whose values are the possible states of the door, then create a <code>Door</code> class parametric over <code>Literal</code>s of that type.</p>
 <p>The <code>Literal</code> type is parameterized by the values objects of the type are permitted to contain. It’s probably easiest to understand by example: <code>3</code> is a valid value of type <code>Literal[3]</code>, but <code>4</code> is not. <code>Literal</code> can be given multiple parameters, indicating objects which may be take any of several literal values. The original intent of the type was to capture the typing of functions like Python’s <code>open</code> (simplified, something like <code>def open(path: str, mode: Literal['r', 'rb', 'w', 'wb']) ...</code>). However, in conjunction with <code>Enum</code> types, it’ll be quite useful as something like “singleton types” in Haskell: a way to lift values denoting possible “typestates” to the type level.</p>
