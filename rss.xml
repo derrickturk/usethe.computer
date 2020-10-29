@@ -1,0 +1,162 @@
+<?xml version = "1.0" encoding = "UTF-8" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+
+<channel>
+<atom:link href="https://usethe.computer/rss_feed.xml" rel="self" type="application/rss+xml" />
+    <title>use the computer - a blog by Derrick Turk</title>
+    <link>https://usethe.computer</link>
+    <description></description>
+<item>
+        <title>Jupyter Ascending: A Retrograde Development</title>
+        <link>https://usethe.computer/posts/21-jupyter-ascending.html</link>
+        <pubDate>Tue, 13 Oct 2020 12:00:00 CST</pubDate>
+      <description>Computational notebooks combine literate programming’s interleaving of source text with prose descriptions and multimedia output with image-based development’s interactivity and mutability. It’s the combination of the two ideas that kills notebooks as a practical tool for software engineering.</description>
+<guid>https://usethe.computer/posts/21-jupyter-ascending.html</guid>
+    </item>
+<item>
+        <title>Fun With Simulated Typestate in Python 3.8</title>
+        <link>https://usethe.computer/posts/20-fun-with-typestate.html</link>
+        <pubDate>Tue, 21 Jul 2020 12:00:00 CST</pubDate>
+      <description>“There’s an old saying in Tennessee—I know it’s in Texas, probably in Tennessee—that says, ‘Fool me once, shame on…shame on you. Fool me—you can’t get fooled again.’”
+            –George W. Bush</description>
+<guid>https://usethe.computer/posts/20-fun-with-typestate.html</guid>
+    </item>
+<item>
+        <title>Irregular Expressions, Revisited</title>
+        <link>https://usethe.computer/posts/19-irregular-expressions-revisited.html</link>
+        <pubDate>Fri, 26 Jun 2020 12:00:00 CST</pubDate>
+      <description>Last time, we used a minimalist parser combinator library to build a parser for an oddly familiar language called OBAN.
+            The problem with our previous parser is that it produces extremely unhelpful error messages. This is probably fine for a parser which runs as part of an automated toolchain and processes almost-always-valid input, but is completely unacceptable for a user-facing tool.</description>
+<guid>https://usethe.computer/posts/19-irregular-expressions-revisited.html</guid>
+    </item>
+<item>
+        <title>Irregular Expressions: You Need a Parser</title>
+        <link>https://usethe.computer/posts/18-irregular-expressions.html</link>
+        <pubDate>Mon, 22 Jun 2020 12:00:00 CST</pubDate>
+      <description>Some people, when confronted with a problem, think “I know, I’ll use regular expressions.” Now they have two problems.
+            –Jamie Zawinski</description>
+<guid>https://usethe.computer/posts/18-irregular-expressions.html</guid>
+    </item>
+<item>
+        <title>A Dialogue</title>
+        <link>https://usethe.computer/posts/17-a-dialogue.html</link>
+        <pubDate>Wed, 03 Jun 2020 12:00:00 CST</pubDate>
+      <description>SOCRATES: What is “machine learning”?
+        </description>
+<guid>https://usethe.computer/posts/17-a-dialogue.html</guid>
+    </item>
+<item>
+        <title>The Shadow Knows</title>
+        <link>https://usethe.computer/posts/16-the-shadow-knows.html</link>
+        <pubDate>Tue, 26 May 2020 12:00:00 CST</pubDate>
+      <description>It’s a nightmare scenario: trapped behind enemy lines with no hope for rescue. For unfathomable reasons of bureaucracy, your access to Turing-complete tools of the trade has been denied. Will you fight? Or will you perish like a dog (in a mire of spreadsheets)?</description>
+<guid>https://usethe.computer/posts/16-the-shadow-knows.html</guid>
+    </item>
+<item>
+        <title>Minimalist DCA in Python</title>
+        <link>https://usethe.computer/posts/15-minimalist-dca-in-python.html</link>
+        <pubDate>Wed, 20 May 2020 12:00:00 CST</pubDate>
+      <description>It’s important, as a rule of thumb, when operating or investing in a firm which produces a physical commodity, to have the ability to reliably quantify the expected future production of the commodity given the firm’s assets. In the oil and gas industry, we have many different ways to forecast future production from an oil or gas well. Some rely on detailed measurements and explicitly incorporate detailed mathematical models of flow physics. Others use whatever historical data we can scrape together and a bit of curve-fitting.</description>
+<guid>https://usethe.computer/posts/15-minimalist-dca-in-python.html</guid>
+    </item>
+<item>
+        <title>XMHell: Handling 38GB of UTF-16 XML with Rust</title>
+        <link>https://usethe.computer/posts/14-xmhell.html</link>
+        <pubDate>Mon, 11 May 2020 12:00:00 CST</pubDate>
+      <description>A couple weekends ago, I found myself with the desire to fetch oil and gas production data for a specific county in New Mexico from the New Mexico Oil Conservation Division (OCD).</description>
+<guid>https://usethe.computer/posts/14-xmhell.html</guid>
+    </item>
+<item>
+        <title>Typing group by, Revisited</title>
+        <link>https://usethe.computer/posts/13-typing-groupby-revisited.html</link>
+        <pubDate>Wed, 29 Apr 2020 12:00:00 CST</pubDate>
+      <description>If you wish to make an apple pie from scratch, you must first create the universe.
+            –Carl Sagan</description>
+<guid>https://usethe.computer/posts/13-typing-groupby-revisited.html</guid>
+    </item>
+<item>
+        <title>“Typing” group by</title>
+        <link>https://usethe.computer/posts/12-typing-groupby.html</link>
+        <pubDate>Tue, 28 Apr 2020 12:00:00 CST</pubDate>
+      <description>A few weeks ago, chatting with some friends who also occupy the tiny intersection between engineers and programmers, the topic of “group by” came up in the context of in-memory data management with Python.</description>
+<guid>https://usethe.computer/posts/12-typing-groupby.html</guid>
+    </item>
+<item>
+        <title>Dashboard Confessional</title>
+        <link>https://usethe.computer/posts/11-dashboard-confessional.html</link>
+        <pubDate>Wed, 22 Apr 2020 12:00:00 CST</pubDate>
+      <description>Many clients, friends, acquaintances, and (in the Before Times) strangers in bars have asked me over the years: what do I think about “business intelligence” (BI) tools? These are applications which make it easy, without any custom programming required, to connect to data sources, visualize data, and create interactive analytics and “dashboards”.</description>
+<guid>https://usethe.computer/posts/11-dashboard-confessional.html</guid>
+    </item>
+<item>
+        <title>Open Recursion: the Essence of Object Oriented Programming?</title>
+        <link>https://usethe.computer/posts/10-open-recursion-the-essence-of-oo.html</link>
+        <pubDate>Sun, 19 Apr 2020 12:00:00 CST</pubDate>
+      <description>What is object-oriented programming really about? What’s so special about “late binding”? And why do I have to pass self around everywhere in Python? We’ll take a meandering path in today’s post which will try to answer each of these questions, and build our own miniature object system along the way.</description>
+<guid>https://usethe.computer/posts/10-open-recursion-the-essence-of-oo.html</guid>
+    </item>
+<item>
+        <title>“Why Are Data Scientists Switching from R to Python?”</title>
+        <link>https://usethe.computer/posts/9-why-are-data-scientists-switching-from-R-to-python.html</link>
+        <pubDate>Sun, 16 Feb 2020 12:00:00 CST</pubDate>
+      <description>Oh, R. I can’t tell you why “data scientists” have switched, for the same reason I can’t tell you how Santa’s reindeer achieve lift: I simply don’t believe in them. But, I can tell you why I no longer use R for new projects.</description>
+<guid>https://usethe.computer/posts/9-why-are-data-scientists-switching-from-R-to-python.html</guid>
+    </item>
+<item>
+        <title>POTD: “A Mathematican's Lament”</title>
+        <link>https://usethe.computer/posts/8-a-mathematicians-lament.html</link>
+        <pubDate>Thu, 07 Dec 2017 12:00:00 CST</pubDate>
+      <description>Today’s Paper of the Day continues this week’s theme of “education”; this time, with a research mathematician turned educator’s thoughts on why K-12 math education ends up leaving so many graduates with negative feelings toward math.</description>
+<guid>https://usethe.computer/posts/8-a-mathematicians-lament.html</guid>
+    </item>
+<item>
+        <title>POTD: “Why Teach Programming Languages?”</title>
+        <link>https://usethe.computer/posts/7-why-teach-programming-languages.html</link>
+        <pubDate>Wed, 06 Dec 2017 12:00:00 CST</pubDate>
+      <description>We continue our celebration (or perhaps examination) of Computer Science Education Week with today’s POTD.</description>
+<guid>https://usethe.computer/posts/7-why-teach-programming-languages.html</guid>
+    </item>
+<item>
+        <title>POTD: “Functional Programming: More Fundamental than BASIC?”</title>
+        <link>https://usethe.computer/posts/6-functional-programming-fundamental.html</link>
+        <pubDate>Tue, 05 Dec 2017 12:00:00 CST</pubDate>
+      <description>Today’s POTD continues our theme of Computer Science Education Week. Yesterday we saw a paper (and retraction), and meditated on the topic of why it’s so hard to teach programming.</description>
+<guid>https://usethe.computer/posts/6-functional-programming-fundamental.html</guid>
+    </item>
+<item>
+        <title>POTD: “The camel has two humps” (and retraction)</title>
+        <link>https://usethe.computer/posts/5-potd-the-camel-has-two-humps.html</link>
+        <pubDate>Mon, 04 Dec 2017 12:00:00 CST</pubDate>
+      <description>This week is Computer Science Education Week! It’s an initiative I watch each year with a mix of admiration and dread; I’m dead convinced that our society needs to expose more students to computer science, not fewer; that programming is getting more accessible and relevant, not less; that the only way to build diversity of experience and perspective downstream in industry and academia is to construct education programs that appeal to diverse populations upstream.</description>
+<guid>https://usethe.computer/posts/5-potd-the-camel-has-two-humps.html</guid>
+    </item>
+<item>
+        <title>POTD: “Unskilled and Unaware of It”</title>
+        <link>https://usethe.computer/posts/4-potd-dunning-kruger.html</link>
+        <pubDate>Fri, 01 Dec 2017 12:00:00 CST</pubDate>
+      <description>Today’s POTD is a well-known classic in the genre of “social sciences research that confirms what we’ve always suspected: people are terrible”.</description>
+<guid>https://usethe.computer/posts/4-potd-dunning-kruger.html</guid>
+    </item>
+<item>
+        <title>POTD: “A Few Useful Things To Know about Machine Learning”</title>
+        <link>https://usethe.computer/posts/3-potd-machine-learning.html</link>
+        <pubDate>Thu, 30 Nov 2017 12:00:00 CST</pubDate>
+      <description>The Paper of the Day for today comes to us from the distant past: a time before venture capital firms would seemingly hurl trebuchet-loads of money at anyone with a “.ai” domain name and the ability to spell “deep learning”. (I’ve been working on this long enough that my folder of papers on machine learning and data science is labeled “AI”.)</description>
+<guid>https://usethe.computer/posts/3-potd-machine-learning.html</guid>
+    </item>
+<item>
+        <title>POTD: “Generalized Algebraic Data Types and Object-Oriented Programming”</title>
+        <link>https://usethe.computer/posts/2-potd-gadt-oop.html</link>
+        <pubDate>Wed, 29 Nov 2017 12:00:00 CST</pubDate>
+      <description>Today’s POTD presents a translation of a great tool from the functional programming community into the more mundane world of 90s-style object-oriented programming languages.</description>
+<guid>https://usethe.computer/posts/2-potd-gadt-oop.html</guid>
+    </item>
+<item>
+        <title>“Learning to Code” for Petroleum Engineers (and Other Technical Types)</title>
+        <link>https://usethe.computer/posts/1-learning-to-code.html</link>
+        <pubDate>Sun, 26 Jun 2016 12:00:00 CST</pubDate>
+      <description>A recent discussion on the SPE discussion board inspired me to jot down some thoughts on how a young (or experienced!) petroleum engineer—or for that matter any other technically skilled non-programmer—might best engage with “learning to code”.
+        </description>
+<guid>https://usethe.computer/posts/1-learning-to-code.html</guid>
+    </item></channel>
+</rss>
