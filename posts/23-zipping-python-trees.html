@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <!--#set var="title" value="Zipping Python Trees" -->
+        <!--#include file="/include/head.html" -->
+    </head>
+    <body>
+        <!--#include file="/include/before.html" -->
+        <h2 class="title">Zipping Python Trees</h2>
+        <h3 class="date">2022-12-08</h3>
+
+<p>The following appeared, as it were, by chance on a private Slack channel as a tangent to a discussion involving this year’s Advent of Code. I have not cleaned it up for the insufferable and joyless pedants of various news aggregation sites, orange or otherwise; nor do I plan to. Life is simply too short. Therefore I apologize in advance for neglecting:</p>
+<ul>
+<li>the rich history of the zipper concept<br />
+</li>
+<li>that one cringy thing about Theseus<br />
+</li>
+<li>the obvious superiority of lenses<br />
+</li>
+<li>the obvious inferiority of lenses<br />
+</li>
+<li>the (don’t giggle) phrase “one-hole context”<br />
+</li>
+<li>the joys of performing “type calculus” to derive zippers as per the above<br />
+</li>
+<li>continuation-based “zippers”<br />
+</li>
+<li>the utility (or not) of pure functional programming<br />
+</li>
+<li>the futility of doing this in Python in the first place<br />
+</li>
+<li>the pain of dealing with chained operations on <code>T</code> | <code>None</code> in Python</li>
+<li>why I didn’t “just” do it in XSLT, or on a SPARCstation, or…</li>
+</ul>
+<p>I present it here with minor alterations only, in the interest of introducing an elegant and useful trick from the functional programming world to a generation of programmers raised on Python.</p>
+<h3 class="title" id="transmission-follows">Transmission Follows</h3>
+<p>Language path: Haskell→Ocaml→Python, mypy typesystem [semantic loss ~31%]<br />
+Subject: Zippers as the key insight</p>
+<p>What great fun! Since mypy 0.991 (or so?) we can finally, finally work with recursive types. This, combined with the pattern-matching features of Python 3.10, opens up “typed” Python to some traditional functional programming practices with a minimum of BS.</p>
+<p>Let’s walk amongst the trees for a bit. We can represent binary trees as nested tuples. A tree is either:</p>
+<ul>
+<li>the empty tree (represented by <code>None</code>), or</li>
+<li>a branch with a data element (here, an <code>int</code>) and left and right children (which are trees)</li>
+</ul>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> NamedTuple, TypeAlias</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Branch(NamedTuple):</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    value: <span class="bu">int</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    left: <span class="st">&#39;Tree&#39;</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    right: <span class="st">&#39;Tree&#39;</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>Tree: TypeAlias <span class="op">=</span> Branch <span class="op">|</span> <span class="va">None</span></span></code></pre></div>
+<p>For example:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>example_tree: Tree <span class="op">=</span> Branch(<span class="dv">3</span>,</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  Branch(<span class="dv">2</span>, Branch(<span class="dv">1</span>, <span class="va">None</span>, <span class="va">None</span>), <span class="va">None</span>),</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  Branch(<span class="dv">5</span>, Branch(<span class="dv">4</span>, <span class="va">None</span>, <span class="va">None</span>), Branch(<span class="dv">6</span>, <span class="va">None</span>, <span class="va">None</span>))</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<p>At the REPL:</p>
+<pre><code>&gt;&gt;&gt; example_tree
+Branch(value=3, left=Branch(value=2, left=Branch(value=1, left=None, right=None), right=None), right=Branch(value=5, left=Branch(value=4, left=None, right=None), right=Branch(value=6, left=None, right=None)))</code></pre>
+<p>We can make this easier to understand with some ASCII art:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> pprint(tree: Tree, indent: <span class="bu">int</span> <span class="op">=</span> <span class="dv">0</span>) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> tree <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(indent <span class="op">*</span> <span class="st">&#39; &#39;</span> <span class="op">+</span> <span class="st">&#39;·&#39;</span>)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(indent <span class="op">*</span> <span class="st">&#39; &#39;</span> <span class="op">+</span> <span class="bu">str</span>(tree.value))</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>        pprint(tree.left, indent <span class="op">=</span> indent <span class="op">+</span> <span class="dv">4</span>)</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>        pprint(tree.right, indent <span class="op">=</span> indent <span class="op">+</span> <span class="dv">4</span>)</span></code></pre></div>
+<p>At the REPL:</p>
+<pre><code>&gt;&gt;&gt; pprint(example_tree)
+3
+    2
+        1
+            ·
+            ·
+        ·
+    5
+        4
+            ·
+            ·
+        6
+            ·
+            ·</code></pre>
+<p>Now, suppose that for some contrived reason (maybe we’re solving a programming puzzle <a href="https://adventofcode.com/2022/day/7">programming puzzle</a>), we have a sequence of commands we want to execute against this tree, where each command may either navigate the tree (“go left”, “go right”, “go back to the parent”) or edit the current position (“set value to 3”, “replace left child with None”). In a purely functional program, all data is immutable: we will not be editing the tree in place. Rather, each command must produce a new copy of the data with the necessary edits applied.</p>
+<p>One more thing: for similarly contrived reasons, we care about the final state of the <em>entire</em> tree (in other words, the “root”) after all commands are applied. This makes life harder! Let’s try to write a function for “go left, then go left, then set value to 77.”</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> left_left_77_first_try(tree: Tree) <span class="op">-&gt;</span> Tree:</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># navigation is pretty straight-forward:</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> tree <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">&quot;can&#39;t go left!&quot;</span>)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    tree <span class="op">=</span> tree.left</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> tree <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">&quot;can&#39;t go left!&quot;</span>)</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    tree <span class="op">=</span> tree.left</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> tree <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">&quot;can&#39;t go left!&quot;</span>)</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    <span class="co"># hmm - this doesn&#39;t feel quite right!</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> tree._replace(value <span class="op">=</span> <span class="dv">77</span>)</span></code></pre></div>
+<p>Let’s try it out:</p>
+<pre><code>&gt;&gt;&gt; pprint(left_left_77_first_try(example_tree))
+77
+    ·
+    ·</code></pre>
+<p>That’s not right at all—we’ve edited the left, left subtree, but we’ve “forgotten how we got there”. Remember, we’re interested in making edits at the leaves but retaining the whole tree (with those edits). To make that work, we need to take apart the tree on our way “down” to the destination, and rebuild it with edits on our way back “up”.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> left_left_77_second_try(tree: Tree) <span class="op">-&gt;</span> Tree:</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> tree <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">&quot;can&#39;t go left!&quot;</span>)</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    first_left <span class="op">=</span> tree.left</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> first_left <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">&quot;can&#39;t go left!&quot;</span>)</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    second_left <span class="op">=</span> first_left.left</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> second_left <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">&quot;can&#39;t go left!&quot;</span>)</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    <span class="co"># rebuild the tree, making replacements...</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> tree._replace(</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>      left <span class="op">=</span> first_left._replace(</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>        left <span class="op">=</span> second_left._replace(value <span class="op">=</span> <span class="dv">77</span>)))</span></code></pre></div>
+<p>And now:</p>
+<pre><code>&gt;&gt;&gt; pprint(left_left_77_second_try(example_tree))
+3
+    2
+        77
+            ·
+            ·
+        ·
+    5
+        4
+            ·
+            ·
+        6
+            ·
+            ·</code></pre>
+<p>That worked! Great, that was just a one-off transformation, right? …Right?</p>
+<p>Oh dear. It seems the actual data is a sequence of these relative commands.</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>commands <span class="op">=</span> [</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;left&#39;</span>, <span class="st">&#39;left&#39;</span>, <span class="st">&#39;set 77&#39;</span>,</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;up&#39;</span>, <span class="st">&#39;set 99&#39;</span>,</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;up&#39;</span>, <span class="st">&#39;right&#39;</span>, <span class="st">&#39;right&#39;</span>, <span class="st">&#39;set 33&#39;</span>,</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div>
+<p>Well, we <em>could</em> translate each sequence of moves followed by a “set” to the appropriate traversal and edit, like <code>left_left_77_second_try</code>—but we’ll be walking and rebuilding the <em>whole</em> tree, from the root, every time we make an edit. That clearly won’t scale to the thousands of nodes that this toy problem <em>obviously</em> will one day reach.</p>
+<p>Let’s slow down and think a little. We’ve already noticed that when we walk a tree to make edits, we have to remember “the rest of the tree” in order to reconstruct it. We also have to know “how we got there” to know which parts of the original tree to replace as we work our way back up.</p>
+<p>The mechanism is kind of like a zipper opening and closing: we “unzip” the tree apart as we move “down” to the focus of the edit, and “zip” it back together when we’re done. We are not the first to notice this! <a href="https://en.wikipedia.org/wiki/G%C3%A9rard_Huet">Gérard Huet</a>, known also for his work on the Caml programming language (ancestor of OCaml) and the Coq proof assistant, <a href="https://www.cambridge.org/core/journals/journal-of-functional-programming/article/zipper/0C058890B8A9B588F26E6D68CF0CE204">stumbled across an idea he called the “zipper”</a> while working on a structured editor (perhaps for Coq) in 1996.</p>
+<p>The zipper concept works for many inductively-defined data types. The core of the idea is this: represent a “zipper” for a given datatype by the contents of the “focused” node plus enough “context” to recover the rest of the structure given alterations to the focus. With the right representation for the context, we can make navigation (that is, moving the focus) efficient. Remember—this is pure functional programming, so the zipper itself is also immutable data; navigation operations will take zippers and return new ones, not mutate the input. Let’s make that all concrete by building a zipper for our binary tree type!</p>
+<p>A zipper for a binary tree represents a focused node in the tree, with the additional information required to navigate around and rebuild the whole thing. The “context” piece of our zipper will consist of a stack of steps we took to reach the focus from the root. For each step, we need to store enough data to recreate the whole tree around the focus; this means we’ll need to store both the direction we took and the “remainder” of the node we navigated from.</p>
+<p>First, let’s define an enumerated type to describe the possible directions we can take navigating “downward” in a tree:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> enum <span class="im">import</span> Enum, auto</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Direction(Enum):</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    Left <span class="op">=</span> auto()</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    Right <span class="op">=</span> auto()</span></code></pre></div>
+<p>For each step we take, we’ll want to store the direction we went, the value stored at the branch, and the “other” subtree (that is, if we go <code>Direction.Left</code>, we need to store the <code>right</code> subtree as <code>other</code>, and <em>vice versa</em>).</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PathStep(NamedTuple):</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">dir</span>: Direction</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    value: <span class="bu">int</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    other: Tree</span></code></pre></div>
+<p>Finally, the zipper proper combines a stack of the steps we took to get to the focused subtree, and the focused subtree itself. I’m going to use a list as a purely-functional stack by copying at each step; this is a little ugly but the goal here is not to recapitulate the definition of immutable lists in Python. Remember, we don’t need <code>deepcopy</code> because all the data is immutable!</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Zipper(NamedTuple):</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    path: <span class="bu">list</span>[PathStep]</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    focus: Tree</span></code></pre></div>
+<p>Functions to convert between a root tree and the corresponding root zipper with that tree as the focus are straightforward:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> to_zipper(tree: Tree) <span class="op">-&gt;</span> Zipper:</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Zipper([], tree)</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> from_zipper(zipper: Zipper) <span class="op">-&gt;</span> Tree:</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> zipper.focus</span></code></pre></div>
+<p>We can now build operations on zippers, for navigating the tree. Going left or right requires remembering the value at the branch, and the other subtree, pushing these onto the path. These operations can fail if the current focus is a dead-end (<code>None</code>), so we’ll return <code>None</code> to indicate failure to navigate in that case.</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> go_left(zipper: Zipper) <span class="op">-&gt;</span> Zipper <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> zipper.focus <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">None</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    step <span class="op">=</span> PathStep(Direction.Left, zipper.focus.value, zipper.focus.right)</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Zipper([step] <span class="op">+</span> zipper.path, zipper.focus.left)</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> go_right(zipper: Zipper) <span class="op">-&gt;</span> Zipper <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> zipper.focus <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">None</span></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>    step <span class="op">=</span> PathStep(Direction.Right, zipper.focus.value, zipper.focus.left)</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Zipper([step] <span class="op">+</span> zipper.path, zipper.focus.right)</span></code></pre></div>
+<p>Remember, we store the “road not taken” in the path stack; if we go left, we store the right subtree for later “re-zipping”, and if we go right, we store the left subtree for later. This lets us rebuild the parent branch when we go “up”, using the stored subtree for the other fork. If we’re at the root already, we’ll just return the current zipper unchanged:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> go_up(zipper: Zipper) <span class="op">-&gt;</span> Zipper:</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">match</span> zipper.path:</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>        case []:</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> zipper</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>        case [PathStep(Direction.Left, value, right), <span class="op">*</span>rest]:</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> Zipper(rest, Branch(value, zipper.focus, right))</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>        case [PathStep(Direction.Right, value, left), <span class="op">*</span>rest]:</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> Zipper(rest, Branch(value, left, zipper.focus))</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">RuntimeError</span>(<span class="st">&quot;this can&#39;t happen but mypy doesn&#39;t know it!&quot;</span>)</span></code></pre></div>
+<p>Navigating all the way back to the root (so that we can recover the final tree) is just a matter of recursing “up” until the path stack is empty:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> go_root(zipper: Zipper) <span class="op">-&gt;</span> Zipper:</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> zipper.path:</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> zipper</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> go_root(go_up(zipper))</span></code></pre></div>
+<p>For convenience, and functional “flavor”, we’ll provide a higher-order function for “editing” the focus of a zipper as well:</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> Callable</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> update_focus(zipper: Zipper, f: Callable[[Tree], Tree]) <span class="op">-&gt;</span> Zipper:</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> zipper._replace(focus <span class="op">=</span> f(zipper.focus))</span></code></pre></div>
+<p>Now let’s try applying our new zipper to navigate and edit the example tree.</p>
+<pre><code>&gt;&gt;&gt; left = go_left(to_zipper(example_tree))
+&gt;&gt;&gt; print(left)
+Zipper(path=[PathStep(dir=&lt;Direction.Left: 1&gt;, value=3, other=Branch(value=5, left=Branch(value=4, left=None, right=None), right=Branch(value=6, left=None, right=None)))], focus=Branch(value=2, left=Branch(value=1, left=None, right=None), right=None))
+&gt;&gt;&gt;
+&gt;&gt;&gt; left2 = left and go_left(left)
+&gt;&gt;&gt; print(left2)
+Zipper(path=[PathStep(dir=&lt;Direction.Left: 1&gt;, value=2, other=None), PathStep(dir=&lt;Direction.Left: 1&gt;, value=3, other=Branch(value=5, left=Branch(value=4, left=None, right=None), right=Branch(value=6, left=None, right=None)))], focus=Branch(value=1, left=None, right=None))
+&gt;&gt;&gt; print(go_root(left2))
+Zipper(path=[], focus=Branch(value=3, left=Branch(value=2, left=Branch(value=1, left=None, right=None), right=None), right=Branch(value=5, left=Branch(value=4, left=None, right=None), right=Branch(value=6, left=None, right=None))))
+&gt;&gt;&gt;
+&gt;&gt;&gt; # dumb Python trick: if `x: None | T` and `f: Callable[[T], T]`
+&gt;&gt;&gt; #   then `x and f(x): None | T`
+&gt;&gt;&gt; root_zipper = go_root(
+...   update_focus(left2, lambda t: t and t._replace(value = 77)))
+&gt;&gt;&gt; new_tree = from_zipper(root_zipper)
+&gt;&gt;&gt; pprint(new_tree)
+3
+    2
+        77
+            ·
+            ·
+        ·
+    5
+        4
+            ·
+            ·
+        6
+            ·
+            ·</code></pre>
+<p>Success! We’ve moved our zipper left twice, performed a functional update of the focused node, moved the zipper back to the root, and extracted the resulting tree.</p>
+<p>Let’s revisit our command sequence from before. We’ll write a function translating each command to an action updating a zipper; it’s more awkward to do this in a purely functional way in Python than by rebinding a variable in a loop, but as a show of “nothing up my sleeve”, let’s use the <code>reduce</code> higher-order function to apply the sequence of commands to a tree. We’ll need to convert the tree to a zipper before we start applying commands; we’ll take the final zipper, navigate to the root, and recover the full tree as our output.</p>
+<div class="sourceCode" id="cb20"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> apply_commands(commands: <span class="bu">list</span>[<span class="bu">str</span>], tree: Tree) <span class="op">-&gt;</span> Tree:</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> apply_command(z: Zipper, c: <span class="bu">str</span>) <span class="op">-&gt;</span> Zipper:</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">match</span> c.split():</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>            <span class="co"># we&#39;ll be &quot;permissive&quot; of bad commands, and just stay where we</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>            <span class="co">#   are if navigation fails</span></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>            case [<span class="st">&#39;left&#39;</span>]:</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>                <span class="cf">return</span> go_left(z) <span class="kw">or</span> z</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>            case [<span class="st">&#39;right&#39;</span>]:</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>                <span class="cf">return</span> go_right(z) <span class="kw">or</span> z</span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>            case [<span class="st">&#39;up&#39;</span>]:</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>                <span class="cf">return</span> go_up(z)</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a>            case [<span class="st">&#39;set&#39;</span>, n]:</span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>                <span class="cf">return</span> update_focus(z,</span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>                  <span class="kw">lambda</span> t: t <span class="kw">and</span> t._replace(value <span class="op">=</span> <span class="bu">int</span>(n)))</span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a>            <span class="cf">case</span> _:</span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a>                <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f&#39;bad command: </span><span class="sc">{</span>c<span class="sc">}</span><span class="ss">&#39;</span>)</span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a>    <span class="im">from</span> functools <span class="im">import</span> <span class="bu">reduce</span></span>
+<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> from_zipper(go_root(</span>
+<span id="cb20-20"><a href="#cb20-20" aria-hidden="true" tabindex="-1"></a>      <span class="bu">reduce</span>(apply_command, commands, to_zipper(tree))))</span></code></pre></div>
+<p>We have now solved the original challenge in a purely-functional way with the aid of our shiny new zipper!</p>
+<pre><code>&gt;&gt;&gt; pprint(apply_commands(commands, example_tree))
+3
+    99
+        77
+            ·
+            ·
+        ·
+    5
+        4
+            ·
+            ·
+        33
+            ·
+            ·</code></pre>
+
+        <!--#include file="/include/after.html" -->
+    </body>
+</html>
