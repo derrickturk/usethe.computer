@@ -7,12 +7,20 @@
     <link>https://usethe.computer</link>
     <description></description>
 <item>
+        <title>Zipping Python Trees</title>
+        <link>https://usethe.computer/posts/23-zipping-python-trees.html</link>
+        <pubDate>Thu, 08 Dec 2022 15:30:00 CST</pubDate>
+        <description>Let's walk amongst the trees for a bit.</description>
+<guid>https://usethe.computer/posts/23-zipping-python-trees.html</guid>
+</item>
+<item>
         <title>Surviving the Energy (To “Coding”) Transition</title>
         <link>https://usethe.computer/posts/22-surviving-the-energy-to-coding-transition.html</link>
         <pubDate>Thu, 07 Jan 2021 12:00:00 CST</pubDate>
         <description>It’s a great time, maybe the best time in the short history of computer technology to date, to learn programming and data science. You’re surrounded by an incredible wealth of free tools and resources, and the excitement about these disciplines in society at large is palpable. But with that wealth comes danger: snake oil salesmen and the “quick fix”. The answer is the same as it always was.</description>
 <guid>https://usethe.computer/posts/22-surviving-the-energy-to-coding-transition.html</guid>
     </item>
+
 <item>
         <title>Jupyter Ascending: A Retrograde Development</title>
         <link>https://usethe.computer/posts/21-jupyter-ascending.html</link>
