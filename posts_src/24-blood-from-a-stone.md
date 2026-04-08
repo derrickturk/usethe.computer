@@ -9,7 +9,7 @@ The poll was a landslide - the people *insisted* upon the reverse engineering wa
 
 > SOCRATES: ...Thamus replied: O most ingenious Theuth, the parent or inventor of an art is not always the best judge of the utility or inutility of his own inventions to the users of them. And in this instance, you who are the father of letters, from a paternal love of your own children have been led to attribute to them a quality which they cannot have; for this discovery of yours will create forgetfulness in the learners' souls, because they will not use their memories; they will trust to the external written characters and not remember of themselves...  
 > PHAEDRUS: Yes, Socrates, you can easily invent tales of Egypt, or of any other country.  
-> –-Plato, *Phaedrus*
+> -- Plato, *Phaedrus*
 
 I have always been drawn to programming because of my very limited memory. Having worked out a method for accomplishing a goal, I prefer to write this method down in such a way that it may be forever after executed by machine. Having done this, I promptly and permanently forget the details.
 
@@ -25,7 +25,7 @@ Now that the scene is set, here's the part where I start lying. Tracing back thr
 
 > Shame on us, for all we have done  
 > And all we ever were, just zeros and ones  
-> –-Nine Inch Nails, *Zero Sum*
+> -- Nine Inch Nails, *Zero Sum*
 
 You've perhaps heard that computers use binary numbers to store data: it's all just zeros and ones. This is, of course, true but in itself a useless factoid. The devil is, as they say, in the details (I have always felt there was a certain Faustian element to the art of programming!) but this article grows long before the first screenshot is placed. In short: there are a variety of conventions for encoding numbers, letters, images, and so forth into sequences of numbers, represented in the computer's various "memories" in base two as patterns of "on" and "off". Much of the data we work with is textual in nature and for this reason many of the file formats we encounter are "text files"; their contents are numbers which represent letters (graphemes? "code points"? hard question!) according to one standard or another (historically, [ASCII](https://en.wikipedia.org/wiki/ASCII) with a growing tendency to various [Unicode](https://en.wikipedia.org/wiki/Unicode) representations e.g. UTF-8).
 
@@ -44,7 +44,7 @@ You can see the hexadecimal representation of each byte in the file on the left,
 This is not surprising. We haven't the space here to get into why, exactly, but many binary format designs are primarily driven by ease of reading or writing them to or from data structures in memory of a running application. We often find a "header" containing some metadata at the start. This often begins with a "magic number" or "magic string" identifying the file format (pop quiz: if you open a file in notepad and see "PK" followed by gibberish, what is it? how about "MZ"?), followed by some human-readable text describing the file, followed by some important metadata required to parse the remainder of the file. What kind of important metadata? Data types, record sizes, array lengths and layouts: things the program needs to know before reading the "real" data.
 
 > Show me your flowcharts and conceal your tables, and I shall continue to be mystified. Show me your tables, and I won't usually need your flowcharts; they'll be obvious.  
-> -–Fred Brooks, *The Mythical Man-Month*
+> -- Fred Brooks, *The Mythical Man-Month*
 
 The `.grd` format is for data grids; these are two-dimensional arrays of some attribute ("*z*") value over cells in *x*, *y* space. It's a safe bet that we'll find an array of these attribute values later in the file. It's also a safe bet that the header will have to contain a count of rows and columns, or rows and data values, or some other equivalent pair of numbers so that Petra knows how much "stuff" to read and how to map it to spatial coordinates. Since *z* values are generally real-valued (that is, they are numbers which may have fractional components), they're likely stored as [IEEE floating-point values](https://en.wikipedia.org/wiki/IEEE_754). That's been the traditional choice for a very long time. This leaves roughly four possibilities (*how* I know this boils down to: experience; it's a fascinating topic but one I can't more than gesture at here - I can only exhort the interested reader to, well, read obsessively): 32-bit "floats" in native/little-endian byte order, 32-bit "floats" in network/big-endian byte order, 64-bit "doubles" in native/little-endian byte order, and 64-bit "doubles" in network/big-endian byte order. I don't have space to go into byte order here, other than to say that "native" byte order is and has been "native" for the majority of end-user systems for a very long time and programmers are quite lazy; this makes the "little-endian" options much more likely than the "big-endian" options especially for a file format (rather than a "wire format" intended to transmit data over a network).
 
