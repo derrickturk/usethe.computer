@@ -7,6 +7,13 @@
     <link>https://usethe.computer</link>
     <description></description>
 <item>
+        <title>Blood From a Stone</title>
+        <link>https://usethe.computer/posts/24-blood-from-a-stone.html</link>
+        <pubDate>Wed, 08 Apr 2026 10:45:00 CST</pubDate>
+        <description>Reverse engineering the Petra .GRD grid format.</description>
+<guid>https://usethe.computer/posts/24-blood-from-a-stone.html</guid>
+</item>
+<item>
         <title>Zipping Python Trees</title>
         <link>https://usethe.computer/posts/23-zipping-python-trees.html</link>
         <pubDate>Thu, 08 Dec 2022 15:30:00 CST</pubDate>
