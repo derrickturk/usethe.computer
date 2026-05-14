@@ -273,32 +273,32 @@ What that record type indicator trie looks like for the 297 format spec is this:
 <START>
 ┣━S
 ┃ ┣━T
-┃ ┃ ┣━A
-┃ ┃ ┃ ┣━R
-┃ ┃ ┃ ┃ ┣━T
-┃ ┃ ┃ ┃ ┃ ┣━_
-┃ ┃ ┃ ┃ ┃ ┃ ┣━U
-┃ ┃ ┃ ┃ ┃ ┃ ┃ ┣━S
-┃ ┃ ┃ ┃ ┃ ┃ ┃ ┃ ┣━_
-┃ ┃ ┃ ┃ ┃ ┃ ┃ ┃ ┃ ┣━W
-┃ ┃ ┃ ┃ ┃ ┃ ┃ ┃ ┃ ┃ ┣━E
-┃ ┃ ┃ ┃ ┃ ┃ ┃ ┃ ┃ ┃ ┃ ┣━L
-┃ ┃ ┃ ┃ ┃ ┃ ┃ ┃ ┃ ┃ ┃ ┃ ┣━L: Start Record Label
+┃ ┃ ┗━A
+┃ ┃   ┗━R
+┃ ┃     ┗━T
+┃ ┃       ┗━_
+┃ ┃         ┗━U
+┃ ┃           ┗━S
+┃ ┃             ┗━_
+┃ ┃               ┗━W
+┃ ┃                 ┗━E
+┃ ┃                   ┗━L
+┃ ┃                     ┗━L: Start Record Label
 ┃ ┣━1: Actual Bottom Hole Reference Location
-┃ ┣━2: Actual Bottom Hole Reference Narrative
+┃ ┗━2: Actual Bottom Hole Reference Narrative
 ┣━E
 ┃ ┣━N
-┃ ┃ ┣━D
-┃ ┃ ┃ ┣━_
-┃ ┃ ┃ ┃ ┣━U
-┃ ┃ ┃ ┃ ┃ ┣━S
-┃ ┃ ┃ ┃ ┃ ┃ ┣━_
-┃ ┃ ┃ ┃ ┃ ┃ ┃ ┣━W
-┃ ┃ ┃ ┃ ┃ ┃ ┃ ┃ ┣━E
-┃ ┃ ┃ ┃ ┃ ┃ ┃ ┃ ┃ ┣━L
-┃ ┃ ┃ ┃ ┃ ┃ ┃ ┃ ┃ ┃ ┣━L: End Record Label
+┃ ┃ ┗━D
+┃ ┃   ┗━_
+┃ ┃     ┗━U
+┃ ┃       ┗━S
+┃ ┃         ┗━_
+┃ ┃           ┗━W
+┃ ┃             ┗━E
+┃ ┃               ┗━L
+┃ ┃                 ┗━L: End Record Label
 ┃ ┣━T: Formation Tops
-┃ ┣━B: Formation Bottoms
+┃ ┗━B: Formation Bottoms
 ┣━A: General Information
 ┣━B
 ┃ ┣━F: Footage Location
@@ -306,31 +306,31 @@ What that record type indicator trie looks like for the 297 format spec is this:
 ┃ ┣━T: Texas Location
 ┃ ┣━N: Northeast and Ohio Location
 ┃ ┣━O: Offshore Location
-┃ ┣━M: Location from Monument
+┃ ┗━M: Location from Monument
 ┣━C: Operator Information
 ┣━D
 ┃ ┣━A: Miscellaneous General Information
 ┃ ┣━B: Additional Miscellaneous General Information
-┃ ┣━C: Additional Miscellaneous General Information (Permit Filer)
+┃ ┗━C: Additional Miscellaneous General Information (Permit Filer)
 ┣━F
 ┃ ┣━<END>: Initial Potential
 ┃ ┣━A: IP Treat
 ┃ ┣━D: Detailed Perforations
-┃ ┣━N: IP Narrative
+┃ ┗━N: IP Narrative
 ┣━G
 ┃ ┣━<END>: Production Test
 ┃ ┣━A: PDT Treat
 ┃ ┣━D: PDT Perforations
-┃ ┣━N: PDT Narrative
+┃ ┗━N: PDT Narrative
 ┣━H
 ┃ ┣━<END>: Drill Stem Tests
 ┃ ┣━A: Drill Stem Tests, Pipe Recovery Detail
 ┃ ┣━B: Drill Stem Tests, Material to Surface Detail
 ┃ ┣━F: Drill Stem Tests, Flow Period
-┃ ┣━N: Drill Stem Test Narrative
+┃ ┗━N: Drill Stem Test Narrative
 ┣━I: Core Data
 ┃ ┣━D: Core Depth/Interval Data
-┃ ┣━N: Core Narrative Data
+┃ ┗━N: Core Narrative Data
 ┣━J: Logs Data
 ┣━K: Mud Data
 ┣━L: Casing Data
@@ -338,43 +338,43 @@ What that record type indicator trie looks like for the 297 format spec is this:
 ┣━N: Tubing Data
 ┣━O
 ┃ ┣━N: Location Narrative
-┃ ┣━A: Drilling Narrative
+┃ ┗━A: Drilling Narrative
 ┣━P
 ┃ ┣━F: Proposed Bottom Hole Location (Footage)
 ┃ ┣━C: Proposed Bottom Hole Location (Congressional and Carter)
 ┃ ┣━T: Proposed Bottom Hole Location (Texas)
 ┃ ┣━N: Proposed Bottom Hole Location (Northeast and Ohio)
-┃ ┣━O: Proposed Bottom Hole Location (Offshore)
+┃ ┗━O: Proposed Bottom Hole Location (Offshore)
 ┣━Q
 ┃ ┣━F: Actual Bottom Hole Location (Footage)
 ┃ ┣━C: Actual Bottom Hole Location (Congressional and Carter)
 ┃ ┣━T: Actual Bottom Hole Location (Texas)
 ┃ ┣━N: Actual Bottom Hole Location (Northeast and Ohio)
-┃ ┣━O: Actual Bottom Hole Location (Offshore)
+┃ ┗━O: Actual Bottom Hole Location (Offshore)
 ┣━R
 ┃ ┣━1: Proposed Bottom Hole Reference Location
-┃ ┣━2: Proposed Bottom Hole Reference Narrative
+┃ ┗━2: Proposed Bottom Hole Reference Narrative
 ┣━T: Deviation Survey
 ┣━U
 ┃ ┣━1: Deviation Survey - Run Survey/Survey Level
-┃ ┣━2: Deviation Survey - Point Data
-┣━V
-┃ ┣━1: Horizontal General Information
-┃ ┣━2: Horizontal Directional Survey Data
-┃ ┣━3
-┃ ┃ ┣━F: Horizontal Kickoff Point Footage Location
-┃ ┃ ┣━C: Horizontal Kickoff Point Congressional and Carter Location
-┃ ┃ ┣━T: Horizontal Kickoff Point Texas Location
-┃ ┃ ┣━N: Horizontal Kickoff Point Northeast and Ohio Location
-┃ ┃ ┣━O: Horizontal Kickoff Point Offshore Location
-┃ ┣━4
-┃ ┃ ┣━F: Horizontal Point of Entry Footage Location
-┃ ┃ ┣━C: Horizontal Point of Entry Congressional and Carter Location
-┃ ┃ ┣━T: Horizontal Point of Entry Texas Location
-┃ ┃ ┣━N: Horizontal Point of Entry Northeast and Ohio Location
-┃ ┃ ┣━O: Horizontal Point of Entry Offshore Location
-┃ ┣━5: Horizontal Kickoff Point/Point of Entry Information Narrative
-┃ ┣━6: Horizontal Spoke Length/Terminus
+┃ ┗━2: Deviation Survey - Point Data
+┗━V
+  ┣━1: Horizontal General Information
+  ┣━2: Horizontal Directional Survey Data
+  ┣━3
+  ┃ ┣━F: Horizontal Kickoff Point Footage Location
+  ┃ ┣━C: Horizontal Kickoff Point Congressional and Carter Location
+  ┃ ┣━T: Horizontal Kickoff Point Texas Location
+  ┃ ┣━N: Horizontal Kickoff Point Northeast and Ohio Location
+  ┃ ┗━O: Horizontal Kickoff Point Offshore Location
+  ┣━4
+  ┃ ┣━F: Horizontal Point of Entry Footage Location
+  ┃ ┣━C: Horizontal Point of Entry Congressional and Carter Location
+  ┃ ┣━T: Horizontal Point of Entry Texas Location
+  ┃ ┣━N: Horizontal Point of Entry Northeast and Ohio Location
+  ┃ ┗━O: Horizontal Point of Entry Offshore Location
+  ┣━5: Horizontal Kickoff Point/Point of Entry Information Narrative
+  ┗━6: Horizontal Spoke Length/Terminus
 ```
 
 We wire up a trie lookup to the aforementioned value-parsing and record-splitting bits and we've got parser for 297c, 297f, 298c, and 298f formats all with a common codebase, driven purely by structured metadata in a type-checked configuration language.
