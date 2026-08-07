@@ -1,6 +1,6 @@
 % Three Futures I: For Whom the Bell Tolls
 
-<img width="900px" src="/images/resf.png">
+<img width="900px" src="/images/bell_tolls.jpg">
 ### the first of three speculative looks at E&P in the next decades
 
 **July 2027, somewhere over grid zone Four Zero Romeo Delta Quebec**
