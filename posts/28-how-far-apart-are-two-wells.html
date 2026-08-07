@@ -23,7 +23,7 @@ arbitrary wells. It’s a horizontal multi-frac world just about
 everywhere the money goes for the foreseeable future, so the precise
 question is: how far apart are two trajectories in three-dimensional
 space?</p>
-<p><img class="centered" width="400px" src="/images/two_horizontals.png" alt="Two totally normal horizontal wellbores"></p>
+<p><img class="centered" width="400px" src="/images/two_horizontals.png" title="Two totally normal horizontal wellbores"></p>
 <p>Well, how long is a piece of string? There’s more than one way to
 answer the question, and each comes with its own strengths and
 weaknesses. Like most of reality, there’s also a surprising amount of
@@ -35,7 +35,7 @@ usually represented as a series of points in space, as measured by a
 gyro survey. We <em>could</em> average all pairwise distances between
 every point in the first well and every point in the second well
 trajectory.</p>
-<p><img class="centered" width="400px" src="/images/average_all.png" alt="Average 'em all and let God sort it out"></p>
+<p><img class="centered" width="400px" src="/images/average_all.png" title="Average 'em all and let God sort it out"></p>
 <p>That’s a lot of work. Sidebar: there’s a piece of complexity I want
 to point out but won’t engage with because I want to keep this short.
 That gyro survey represents only a sampled subset of the (infinite)
@@ -50,7 +50,7 @@ misleading when the well trajectories get “weirder”. Do we
 <em>really</em> want the estimate here to be skewed by the long traces
 between points in the “heel” of well A and some points in the curved
 “toe” of well B?</p>
-<p><img class="centered" width="400px" src="/images/average_bendy.png" alt="Hmm... not so nice with a bendy B"></p>
+<p><img class="centered" width="400px" src="/images/average_bendy.png" title="Hmm... not so nice with a bendy B"></p>
 <p>OK, we can do a bit better by replacing this “average of averages”
 approach with an approach that tries to capture our intuition that what
 matters is how close the wells are to each other “at each point”. One
@@ -65,7 +65,7 @@ continuous track of well B. This usually requires us to approximate B by
 a sequence of line segments, and do a little math.) Does this mean that
 Distance(A → B) ≠ Distance(B → A)? (Hell yeah. Welcome to the
 Thunderdome.)</p>
-<p><img class="centered" width="400px" src="/images/average_perpendicular.png" alt="Perpendicular distances from A to B"></p>
+<p><img class="centered" width="400px" src="/images/average_perpendicular.png" title="Perpendicular distances from A to B"></p>
 <p>Here’s a related fun idea that gets us an interesting quick look
 number to spot well pairs that are very near to each other along their
 entire trajectories (and likely have little non-overlapped drainage,
@@ -74,7 +74,7 @@ evaluate the Hausdorff distance between well A and well B.</p>
 <p>Imagine that you are walking your very free-spirited dog, on a leash.
 You’re walking along well A, and the dog is walking along well B. Both
 you can and the dog can rove freely along your respective wellbores.</p>
-<p><img class="centered" width="400px" src="/images/woof_woof.png" alt="Maybe it's a barking goat?"></p>
+<p><img class="centered" width="400px" src="/images/woof_woof.png" title="Maybe it's a barking goat?"></p>
 <p>The dog wants to get as far away from you as possible, but you can
 always move along your own wellbore to keep up. What’s the shortest
 leash you can bring (without strangling your poor dog!), taking your
@@ -82,12 +82,12 @@ respective ranges of motion into account? I think it’s this value right
 here—that’s the Hausdorff distance from A to B. (Note that the Hausdorff
 distance from B to A will be different; it matters which side is the dog
 and which side is the dog-walker. Another non-symmetric metric.)</p>
-<p><img class="centered" width="400px" src="/images/hausdorff.png" alt="Social distancing"></p>
+<p><img class="centered" width="400px" src="/images/hausdorff.png" title="Social distancing"></p>
 <p>None of these metrics are perfect, and all can be actively misleading
 in some situations. We’ve got “U-turn” laterals now, so some previously
 unthinkable situations are now quite thinkable. We have wells whose
 nearest neighbors are, in a meaningful sense, themselves!</p>
-<p><img class="centered" width="400px" src="/images/u_turn.png" alt="An oilfield &ldquo;I feel old&rdquo; moment: hearing about U-turn wells"></p>
+<p><img class="centered" width="400px" src="/images/u_turn.png" title="An oilfield &ldquo;I feel old&rdquo; moment: hearing about U-turn wells"></p>
 <p>I’d love to see future developments in well spacing measurement.
 Personally, I think we could do better by somehow taking into account
 two-dimensional or even three-dimensional areas or volumes rather than
