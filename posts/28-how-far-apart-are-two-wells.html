@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <!--#set var="title" value="How Far Apart Are Two Wells?" -->
+        <!--#include file="/include/head.html" -->
+    </head>
+    <body>
+        <!--#include file="/include/before.html" -->
+        <h2 class="title">How Far Apart Are Two Wells?</h2>
+        <h3 class="date">2026-07-15</h3>
+
+<p>This post originally ran on Collide and LinkedIn. It’s archived here
+with its original publication date.</p>
+<hr />
+<p>Well spacing is a big deal these days. What’s typical in a play? (We
+need to estimate inventory.) Are we too dense or too sparse? (We keep
+revising reserves downward in proven rock.) How far away do we need to
+shut in to avoid frac hits? Can we classify these peer wells in terms of
+“parent”/“child” interactions?</p>
+<p>When we consider these questions and how to address them using
+available data, we find that we need to quantify the distance between
+arbitrary wells. It’s a horizontal multi-frac world just about
+everywhere the money goes for the foreseeable future, so the precise
+question is: how far apart are two trajectories in three-dimensional
+space?</p>
+<p><img width="400px" src="/images/two_horizontals.png"></p>
+<p>Well, how long is a piece of string? There’s more than one way to
+answer the question, and each comes with its own strengths and
+weaknesses. Like most of reality, there’s also a surprising amount of
+complexity to the problem, and a surprising number of small decisions to
+make along the way.</p>
+<p>The first thing most people come up with is “take the average”. That
+can be fine! We’ll average… wait, what exactly? Each well trajectory is
+usually represented as a series of points in space, as measured by a
+gyro survey. We <em>could</em> average all pairwise distances between
+every point in the first well and every point in the second well
+trajectory.</p>
+<p><img width="400px" src="/images/average_all.png"></p>
+<p>That’s a lot of work. Sidebar: there’s a piece of complexity I want
+to point out but won’t engage with because I want to keep this short.
+That gyro survey represents only a sampled subset of the (infinite)
+points which lie along the three-dimensional curve of the wellbore
+trajectory. Every method we’re going to cover here could be generalized
+to work on continuous approximations (Bézier splines, etc.) fit to the
+survey points; we’re going to hope instead that our surveys are
+reasonably accurate and dense, and just work with the sampled
+points.</p>
+<p>Anywhow, as I was saying, that’s a lot of work! It’s also potentially
+misleading when the well trajectories get “weirder”. Do we
+<em>really</em> want the estimate here to be skewed by the long traces
+between points in the “heel” of well A and some points in the curved
+“toe” of well B?</p>
+<p><img width="400px" src="/images/average_bendy.png"></p>
+<p>OK, we can do a bit better by replacing this “average of averages”
+approach with an approach that tries to capture our intuition that what
+matters is how close the wells are to each other “at each point”. One
+common way is to average the distance from each point in A to the
+closest point in well B. A refinement is to average the perpendicular
+distance from each point in A to the trajectory of B. (Why? We expect
+wells to be drilled such that fractures propagate roughly perpendicular
+to the wellbore; the argument is that we’re trying to measure the
+distance from A to B along the expected path of drainage.) Complexity
+sidebar: perpendicular to what? (Usually well A.) Distance to what? (The
+continuous track of well B. This usually requires us to approximate B by
+a sequence of line segments, and do a little math.) Does this mean that
+Distance(A → B) ≠ Distance(B → A)? (Hell yeah. Welcome to the
+Thunderdome.)</p>
+<p><img width="400px" src="/images/average_perpendicular.png"></p>
+<p>Here’s a related fun idea that gets us an interesting quick look
+number to spot well pairs that are very near to each other along their
+entire trajectories (and likely have little non-overlapped drainage,
+which is why I usually care when calculating these metrics). We can
+evaluate the Hausdorff distance between well A and well B.</p>
+<p>Imagine that you are walking your very free-spirited dog, on a leash.
+You’re walking along well A, and the dog is walking along well B. Both
+you can and the dog can rove freely along your respective wellbores.</p>
+<p><img width="400px" src="/images/woof_woof.png"></p>
+<p>The dog wants to get as far away from you as possible, but you can
+always move along your own wellbore to keep up. What’s the shortest
+leash you can bring (without strangling your poor dog!), taking your
+respective ranges of motion into account? I think it’s this value right
+here—that’s the Hausdorff distance from A to B. (Note that the Hausdorff
+distance from B to A will be different; it matters which side is the dog
+and which side is the dog-walker. Another non-symmetric metric.)</p>
+<p><img width="400px" src="/images/hausdorff.png"></p>
+<p>None of these metrics are perfect, and all can be actively misleading
+in some situations. We’ve got “U-turn” laterals now, so some previously
+unthinkable situations are now quite thinkable. We have wells whose
+nearest neighbors are, in a meaningful sense, themselves!</p>
+<p><img width="400px" src="/images/u_turn.png"></p>
+<p>I’d love to see future developments in well spacing measurement.
+Personally, I think we could do better by somehow taking into account
+two-dimensional or even three-dimensional areas or volumes rather than
+distances. Something in the vein of integrating along the wellbore(s) to
+evaluate overlapped drainage area might get us metric more directly
+correlated to the performance impact of spacing. Maybe we need to
+include rock anisotropy and reservoir heterogeneity in our calculations,
+moving away from unadjusted Euclidean distances in space. I don’t know
+“the” answer, but I’m confident that this is an area with surprising
+depth and we’re not done iterating yet.</p>
+
+        <!--#include file="/include/after.html" -->
+    </body>
+</html>
